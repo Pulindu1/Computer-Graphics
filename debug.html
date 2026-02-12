@@ -1,0 +1,61 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Debug Test</title>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.126.1/build/three.module.js",
+          "three/examples/jsm/controls/OrbitControls.js": "https://unpkg.com/three@0.126.1/examples/jsm/controls/OrbitControls.js"
+        }
+      }
+    </script>
+</head>
+<body>
+    <script type="module">
+        console.log("=== Starting debug test ===");
+        
+        try {
+            console.log("1. Loading THREE...");
+            const THREE = await import("three");
+            console.log("✓ THREE loaded:", THREE);
+            
+            console.log("2. Loading initThree...");
+            const { initThree } = await import("./src/core/initThree.js");
+            console.log("✓ initThree loaded");
+            
+            console.log("3. Loading resize...");
+            const { installResizeHandler } = await import("./src/core/resize.js");
+            console.log("✓ resize loaded");
+            
+            console.log("4. Loading terrain...");
+            const { createTerrain } = await import("./src/environment/terrain.js");
+            console.log("✓ terrain loaded");
+            
+            console.log("5. Loading uniformGrid...");
+            const { UniformGrid } = await import("./src/spacial/uniformGrid.js");
+            console.log("✓ uniformGrid loaded");
+            
+            console.log("6. Loading debugGridRenderer...");
+            const { DebugGridRenderer } = await import("./src/spacial/debugGridRenderer.js");
+            console.log("✓ debugGridRenderer loaded");
+            
+            console.log("7. Loading hotbar...");
+            const { createHotbar } = await import("./src/ui/hotbar.js");
+            console.log("✓ hotbar loaded");
+            
+            console.log("8. Initializing Three.js...");
+            const { scene, camera, renderer, controls } = initThree();
+            console.log("✓ Three.js initialized");
+            
+            console.log("=== ALL MODULES LOADED SUCCESSFULLY ===");
+            document.body.innerHTML = '<h1 style="color:green;">All modules loaded! Check console.</h1>';
+            
+        } catch (error) {
+            console.error("❌ ERROR:", error);
+            document.body.innerHTML = '<h1 style="color:red;">Error! Check console.</h1><pre>' + error.stack + '</pre>';
+        }
+    </script>
+</body>
+</html>
