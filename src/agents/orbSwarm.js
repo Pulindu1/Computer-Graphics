@@ -2,8 +2,6 @@
 import { ORB_DEFAULTS } from "./orbConfig.js";
 import { Stats } from "../stats.js";
 
-const _tmpNeighbors = [];
-
 function rand(min, max) {
   return min + Math.random() * (max - min);
 }
@@ -24,6 +22,9 @@ export function createOrbSwarm(river, config = {}) {
   const speed = new Float32Array(N);
   const phase = new Float32Array(N);
   const side = new Int8Array(N); // +1 or -1
+  
+  // Reusable array for neighbor queries (allocation-free)
+  const tmpNeighbors = [];
 
   // init
   for (let i = 0; i < N; i++) {
@@ -130,12 +131,13 @@ export function createOrbSwarm(river, config = {}) {
 
       if (spatial) {
         // O(n×m) spatial hash mode
-        const candidates = spatial.queryRadius(xw, zw, cfg.separationRadius);
+        tmpNeighbors.length = 0; // Clear reusable array (no allocation)
+        spatial.queryInto(xw, zw, cfg.separationRadius, tmpNeighbors);
         const MAX_NEIGHBORS = 24; // Cap neighbors for predictable performance
         let found = 0;
 
-        for (let n = 0; n < candidates.length; n++) {
-          const j = candidates[n];
+        for (let n = 0; n < tmpNeighbors.length; n++) {
+          const j = tmpNeighbors[n];
           if (j === i) continue;
 
           Stats.candidateChecks++; // Track every distance check

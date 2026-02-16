@@ -4,9 +4,13 @@ import { Stats } from "../stats.js";
 export class SpatialHash {
   constructor(cellSize = 20) {
     this.cellSize = cellSize;
-    this.map = new Map();          // key -> array of agent IDs
+    this.map = new Map();          // packed int key -> array of agent IDs
     this.lastQueryKeys = [];       // used for debug highlight
     this.allQueryKeys = new Set(); // accumulate all queries in frame
+    
+    // Packing constants for integer keys
+    this.OFF = 1 << 15; // 32768 offset for negative indices
+    this.MASK = (1 << 16) - 1;
   }
 
   clear() {
@@ -23,20 +27,29 @@ export class SpatialHash {
     return Math.floor(v / this.cellSize);
   }
 
-  // Cell coords -> key
-  _key(cx, cz) {
-    return `${cx},${cz}`;
+  // Pack cell coords into single integer key (allocation-free)
+  _packKey(cx, cz) {
+    const x = (cx + this.OFF) & this.MASK;
+    const z = (cz + this.OFF) & this.MASK;
+    return (x << 16) | z;
+  }
+  
+  // Unpack key back to coords (for debug rendering)
+  _unpackKey(key) {
+    const x = (key >>> 16) - this.OFF;
+    const z = (key & this.MASK) - this.OFF;
+    return { cx: x, cz: z };
   }
 
   // World -> key
   getCellKey(x, z) {
-    return this._key(this._cellCoord(x), this._cellCoord(z));
+    return this._packKey(this._cellCoord(x), this._cellCoord(z));
   }
 
   insert(id, x, z) {
     const cx = this._cellCoord(x);
     const cz = this._cellCoord(z);
-    const key = this._key(cx, cz);
+    const key = this._packKey(cx, cz);
     let bucket = this.map.get(key);
     if (!bucket) {
       bucket = [];
@@ -45,24 +58,23 @@ export class SpatialHash {
     bucket.push(id);
   }
 
-  // Query candidates in r radius (returns IDs; you still do exact distance test after)
-  queryRadius(x, z, r) {
+  // Allocation-free query: fills provided array instead of allocating new one
+  queryInto(x, z, r, out) {
     const cx = this._cellCoord(x);
     const cz = this._cellCoord(z);
 
     const rCells = Math.ceil(r / this.cellSize);
-    const out = [];
     const keys = [];
 
     for (let dz = -rCells; dz <= rCells; dz++) {
       for (let dx = -rCells; dx <= rCells; dx++) {
-        const key = this._key(cx + dx, cz + dz);
+        const key = this._packKey(cx + dx, cz + dz);
         keys.push(key);
         this.allQueryKeys.add(key); // Track all queries in frame
 
         const bucket = this.map.get(key);
         if (bucket) {
-          // append
+          // append to provided array (no allocation)
           for (let i = 0; i < bucket.length; i++) out.push(bucket[i]);
         }
       }
@@ -72,6 +84,12 @@ export class SpatialHash {
     Stats.queriedCells += keys.length;
 
     return out;
+  }
+  
+  // Legacy method for backward compatibility (allocates)
+  queryRadius(x, z, r) {
+    const out = [];
+    return this.queryInto(x, z, r, out);
   }
 
   // For heatmap rendering

@@ -34,9 +34,10 @@ export class QueryCellOverlay {
 
   /**
    * Update visualization from query cell keys
-   * @param {Array<string>} keys - Array of "cx,cz" cell keys
+   * @param {Array<number>} keys - Array of packed integer cell keys
+   * @param {SpatialHash} spatial - Spatial hash instance for unpacking keys
    */
-  updateFromKeys(keys) {
+  updateFromKeys(keys, spatial) {
     if (!keys || keys.length === 0) {
       this.mesh.count = 0;
       return;
@@ -45,7 +46,7 @@ export class QueryCellOverlay {
     const n = Math.min(keys.length, this.maxInstances); // Use stored maxInstances!
 
     for (let i = 0; i < n; i++) {
-      const [cx, cz] = keys[i].split(",").map(Number);
+      const { cx, cz } = spatial._unpackKey(keys[i]);
 
       // World position (center of cell)
       const x = (cx + 0.5) * this.cellSize;
@@ -58,6 +59,15 @@ export class QueryCellOverlay {
 
     this.mesh.count = n;
     this.mesh.instanceMatrix.needsUpdate = true;
+  }
+  
+  updateGeometry() {
+    // Rebuild geometry with new cell size
+    const oldGeometry = this.mesh.geometry;
+    const newGeometry = new THREE.PlaneGeometry(this.cellSize * 0.95, this.cellSize * 0.95);
+    newGeometry.rotateX(-Math.PI / 2);
+    this.mesh.geometry = newGeometry;
+    oldGeometry.dispose();
   }
 
   setVisible(visible) {

@@ -39,9 +39,10 @@ export class HeatmapRenderer {
 
   /**
    * Update visualization from spatial hash occupancy data
-   * @param {Array<{key: string, count: number}>} cells
+   * @param {Array<{key: number, count: number}>} cells
+   * @param {SpatialHash} spatial - Spatial hash instance for unpacking keys
    */
-  update(cells) {
+  update(cells, spatial) {
     if (!cells || cells.length === 0) {
       this.mesh.count = 0;
       return;
@@ -51,8 +52,8 @@ export class HeatmapRenderer {
     let instanceIndex = 0;
 
     for (const { key, count } of cells) {
-      // Parse key "cx,cz"
-      const [cx, cz] = key.split(",").map(Number);
+      // Unpack integer key to cell coords
+      const { cx, cz } = spatial._unpackKey(key);
 
       // World position (center of cell)
       const x = (cx + 0.5) * this.cellSize;
@@ -98,6 +99,15 @@ export class HeatmapRenderer {
     }
 
     return outColor;
+  }
+  
+  updateGeometry() {
+    // Rebuild geometry with new cell size
+    const oldGeometry = this.mesh.geometry;
+    const newGeometry = new THREE.PlaneGeometry(this.cellSize * 0.9, this.cellSize * 0.9);
+    newGeometry.rotateX(-Math.PI / 2);
+    this.mesh.geometry = newGeometry;
+    oldGeometry.dispose();
   }
 
   setVisible(visible) {

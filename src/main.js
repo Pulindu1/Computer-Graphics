@@ -99,6 +99,8 @@ const river = makeRiverCorridor({
 let swarm = null;
 let spatial = null;
 let orbLOD = null;
+let heatmap = null;
+let queryCellOverlay = null;
 
 // keep track of brightness so rebuild preserves it
 let orbBrightness = 1.0;
@@ -123,6 +125,16 @@ function rebuildOrbs(agentCount) {
   // Match cell size to neighbor radius for optimal bucketing
   const cellSize = ORB_DEFAULTS.separationRadius * 1.25; // slightly larger
   spatial = new SpatialHash(cellSize);
+  
+  // Update visualizations to match spatial hash cell size (if they exist)
+  if (heatmap) {
+    heatmap.cellSize = cellSize;
+    heatmap.updateGeometry();
+  }
+  if (queryCellOverlay) {
+    queryCellOverlay.cellSize = cellSize;
+    queryCellOverlay.updateGeometry();
+  }
 
   orbLOD = createOrbLodRenderer({
     count: swarm.count,
@@ -150,7 +162,7 @@ const debugGrid = new DebugGridRenderer({
 scene.add(debugGrid.object3d);
 
 // Heatmap occupancy visualization
-const heatmap = new HeatmapRenderer({
+heatmap = new HeatmapRenderer({
   cellSize: 20,
   worldSize: 2000,
   y: 0.08, // Slightly above debug grid
@@ -158,7 +170,7 @@ const heatmap = new HeatmapRenderer({
 scene.add(heatmap.mesh);
 
 // Query cell overlay (shows which cells are being queried)
-const queryCellOverlay = new QueryCellOverlay({
+queryCellOverlay = new QueryCellOverlay({
   cellSize: 20,
   y: 0.09, // Above heatmap
 });
@@ -276,7 +288,7 @@ function animate() {
   heatmap.mesh.visible = params.showOccupancy;
   if (params.showOccupancy && spatial) {
     Perf.begin("heatmap");
-    heatmap.update(spatial.getOccupiedCells());
+    heatmap.update(spatial.getOccupiedCells(), spatial);
     heatmapMs = Perf.end("heatmap");
   } else {
     heatmapMs = 0;
@@ -289,7 +301,7 @@ function animate() {
     const keysSize = spatial.allQueryKeys.size;
     if (keysSize > 0) {
       const keys = Array.from(spatial.allQueryKeys);
-      queryCellOverlay.updateFromKeys(keys);
+      queryCellOverlay.updateFromKeys(keys, spatial);
     }
   } else {
     // Clear overlay when not in use
