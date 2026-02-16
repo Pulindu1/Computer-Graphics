@@ -4,6 +4,8 @@ import { installResizeHandler } from "./core/resize.js";
 import { createTerrain } from "./environment/terrain.js";
 import { UniformGrid } from "./spacial/uniformGrid.js";
 import { DebugGridRenderer } from "./spacial/debugGridRenderer.js";
+import { HeatmapRenderer } from "./spacial/heatmapRenderer.js";
+import { QueryCellOverlay } from "./spacial/queryCellOverlay.js";
 import { createWater } from "./environment/water.js";
 import { DayNightCycle } from "./ui/dayNightCycle.js";
 import { makeRiverCorridor } from "./environment/riverCorridor.js";
@@ -39,20 +41,31 @@ scene.fog = null;
 const WATER_LEVEL = -6;
 
 // --- Procedural grass hill terrain ---
-const terrain = createTerrain({
+let terrain = null;
+const terrainConfig = {
   width: 800,
-  length: 2000, // Divided by 1.5
+  length: 2000,
   segmentsWidth: 200,
-  segmentsLength: 50, // Reduced proportionally
+  segmentsLength: 50,
   samplerParams: {
     waterLevel: WATER_LEVEL,
     amplitude: 18,
     wavelength: 140,
     seedishOffset: 13.37,
-  },
-});
+  }
+};
 
-scene.add(terrain.mesh);
+function rebuildTerrain() {
+  if (terrain) {
+    scene.remove(terrain.mesh);
+    terrain.mesh.geometry.dispose();
+    terrain.mesh.material.dispose();
+  }
+  terrain = createTerrain(terrainConfig);
+  scene.add(terrain.mesh);
+}
+
+rebuildTerrain(); // Initial build
 
 // --- Water surface (UV scrolling) ---
 const water = createWater({
@@ -132,9 +145,26 @@ const debugGrid = new DebugGridRenderer({
 });
 scene.add(debugGrid.object3d);
 
+// Heatmap occupancy visualization
+const heatmap = new HeatmapRenderer({
+  cellSize: 20,
+  worldSize: 2000,
+  y: 0.08, // Slightly above debug grid
+});
+scene.add(heatmap.mesh);
+
+// Query cell overlay (shows which cells are being queried)
+const queryCellOverlay = new QueryCellOverlay({
+  cellSize: 20,
+  y: 0.09, // Above heatmap
+});
+scene.add(queryCellOverlay.mesh);
+
 // create lil-gui UI for all controls
 const { gui, params } = createUI({
   debugGrid,
+  heatmap,
+  queryCellOverlay,
   scene,
   dayNightCycle,
   getAgentCount: () => (swarm ? swarm.count : 0),
@@ -144,7 +174,7 @@ const { gui, params } = createUI({
   onSetBrightness: (v) => {
     orbBrightness = v;
     if (orbLOD) orbLOD.setBrightness(orbBrightness);
-  },
+  }
 });
 
 // Quick sanity inserts (dummy points)
@@ -213,6 +243,11 @@ function animate() {
 
   const dt = Math.min(clock.getDelta(), 0.033);
   const t = clock.elapsedTime;
+  
+  // Reset query tracking for spatial hash
+  if (spatial) {
+    spatial.resetQueryTracking();
+  }
 
   // Controls damping requires update each frame
   controls.update();
@@ -222,6 +257,28 @@ function animate() {
   // Pass spatial hash only if mode is "hash", otherwise pass null for naive O(n²) mode
   const spatialToUse = params.neighborMode === "hash" ? spatial : null;
   if (swarm) swarm.update(dt, t, spatialToUse);
+  
+  // Update heatmap visualization
+  heatmap.mesh.visible = params.showOccupancy;
+  if (params.showOccupancy && spatial) {
+    heatmap.update(spatial.getOccupiedCells());
+  }
+  
+  // Update query cell overlay (shows ALL cells accessed during this frame)
+  queryCellOverlay.mesh.visible = params.showQueryCells && params.neighborMode === "hash";
+  
+  if (params.showQueryCells && params.neighborMode === "hash" && spatial) {
+    const keysSize = spatial.allQueryKeys.size;
+    if (keysSize > 0) {
+      const keys = Array.from(spatial.allQueryKeys);
+      queryCellOverlay.updateFromKeys(keys);
+    }
+  } else {
+    // Clear overlay when not in use
+    if (queryCellOverlay.mesh.count > 0) {
+      queryCellOverlay.mesh.count = 0;
+    }
+  }
   
   // update instance transforms with LOD switching
   if (orbLOD) orbLOD.updateInstances(swarm, camera);

@@ -6,10 +6,16 @@ export class SpatialHash {
     this.cellSize = cellSize;
     this.map = new Map();          // key -> array of agent IDs
     this.lastQueryKeys = [];       // used for debug highlight
+    this.allQueryKeys = new Set(); // accumulate all queries in frame
   }
 
   clear() {
     this.map.clear();
+  }
+  
+  // Reset query tracking for new frame
+  resetQueryTracking() {
+    this.allQueryKeys.clear();
   }
 
   // World -> integer cell coords
@@ -52,6 +58,7 @@ export class SpatialHash {
       for (let dx = -rCells; dx <= rCells; dx++) {
         const key = this._key(cx + dx, cz + dz);
         keys.push(key);
+        this.allQueryKeys.add(key); // Track all queries in frame
 
         const bucket = this.map.get(key);
         if (bucket) {

@@ -16,6 +16,8 @@ import * as THREE from "three";
 
 export function createUI({
   debugGrid,
+  heatmap,
+  queryCellOverlay,
   scene,
   dayNightCycle,
   getAgentCount,
@@ -64,19 +66,11 @@ export function createUI({
   
   fDebug
     .add(params, "showOccupancy")
-    .name("Heatmap occupancy")
-    .onChange((v) => {
-      console.log(`Occupancy heatmap: ${v}`);
-      // TODO: Implement heatmap visualization
-    });
+    .name("Heatmap occupancy");
   
   fDebug
     .add(params, "showQueryCells")
-    .name("Show query cells")
-    .onChange((v) => {
-      console.log(`Query cells highlight: ${v}`);
-      // TODO: Implement query cell highlighting
-    });
+    .name("Show query cells");
 
   // --- Folder: Orbs ---
   const fOrbs = gui.addFolder("Orbs");

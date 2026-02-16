@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { createTerrainSampler } from "./terrainHeight.js";
+import { makeTerrainField } from "./terrainField.js";
 
 // Simple 2D smoothing (box blur) on the height grid.
 // iterations: 2–6 is usually enough
@@ -43,6 +44,7 @@ export function createTerrain({
   samplerParams = {},
   smoothing = { iterations: 5, strength: 0.6 } // tweak here
 } = {}) {
+  
   const { sample } = createTerrainSampler(samplerParams);
 
   const geo = new THREE.PlaneGeometry(width, length, segmentsWidth, segmentsLength);
@@ -89,6 +91,43 @@ export function createTerrain({
   smoothing.strength
 );
 
+
+  // Create heightAt function early so we can use it for terrain field
+  const halfWidth = width / 2;
+  const halfLength = length / 2;
+  const stepWidth = width / segmentsWidth;
+  const stepLength = length / segmentsLength;
+
+  function heightAt(x, z) {
+    // convert world x,z to grid coords (0..segments)
+    const fx = (x + halfWidth) / stepWidth;
+    const fz = (z + halfLength) / stepLength;
+
+    // clamp inside grid
+    const x0 = Math.max(0, Math.min(segmentsWidth - 1, Math.floor(fx)));
+    const z0 = Math.max(0, Math.min(segmentsLength - 1, Math.floor(fz)));
+
+    const tx = fx - x0;
+    const tz = fz - z0;
+
+    const i00 = z0 * vertsWidth + x0;
+    const i10 = z0 * vertsWidth + (x0 + 1);
+    const i01 = (z0 + 1) * vertsWidth + x0;
+    const i11 = (z0 + 1) * vertsWidth + (x0 + 1);
+
+    const h00 = heights[i00];
+    const h10 = heights[i10];
+    const h01 = heights[i01];
+    const h11 = heights[i11];
+
+    // bilinear interpolation
+    const hx0 = h00 * (1 - tx) + h10 * tx;
+    const hx1 = h01 * (1 - tx) + h11 * tx;
+    return hx0 * (1 - tz) + hx1 * tz;
+  }
+
+  // Create terrain field API for slope calculations
+  const terrainField = makeTerrainField(heightAt);
 
   // Apply smoothed heights + vertex colours
   const colors = new Float32Array(totalVerts * 3);
