@@ -172,6 +172,25 @@ gridHelper.material.transparent = true;
 gridHelper.material.opacity = 0.15;
 scene.add(gridHelper);
 
+// --- FPS Counter ---
+const fpsElement = document.getElementById('fps');
+let frameCount = 0;
+let lastTime = performance.now();
+
+function updateFPS() {
+  frameCount++;
+  const currentTime = performance.now();
+  const elapsed = currentTime - lastTime;
+  
+  // Update every 500ms
+  if (elapsed >= 500) {
+    const fps = Math.round((frameCount * 1000) / elapsed);
+    fpsElement.textContent = `FPS: ${fps}`;
+    frameCount = 0;
+    lastTime = currentTime;
+  }
+}
+
 // --- Animation loop ---
 const clock = new THREE.Clock();
 
@@ -202,7 +221,8 @@ function animate() {
   // If later you want “wind” motion, you can re-displace terrain here.
   // Keep it static for now (cheaper + stable base).
 
-  renderer.render(scene, camera);
-}
+  renderer.render(scene, camera);  
+  // Update FPS counter
+  updateFPS();}
 
 animate();

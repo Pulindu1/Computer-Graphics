@@ -46,7 +46,7 @@ export function createUI({
   // --- Folder: Orbs ---
   const fOrbs = gui.addFolder("Orbs");
   fOrbs
-    .add(params, "agentCount", 0, 2000, 50)
+    .add(params, "agentCount", 0, 10000, 50)
     .name("Agent count")
     .onFinishChange((v) => {
       // rebuild only when user releases slider (prevents constant rebuild)
