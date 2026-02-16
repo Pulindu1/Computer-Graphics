@@ -6,23 +6,29 @@ import { UniformGrid } from "./spacial/uniformGrid.js";
 import { DebugGridRenderer } from "./spacial/debugGridRenderer.js";
 import { createHotbar } from "./ui/hotbar.js";
 import { createWater } from "./environment/water.js";
+import { DayNightCycle } from "./ui/dayNightCycle.js";
 
 const { scene, camera, renderer, controls } = initThree();
 installResizeHandler(camera, renderer);
 
+// --- Day/Night Cycle ---
+const dayNightCycle = new DayNightCycle(escene, renderer);
+
 // --- Scene dressing (light/fog/background) ---
-scene.background = new THREE.Color(0x1b2133);
+// Note: Background and some lights are now controlled by dayNightCycle
+// scene.background = new THREE.Color(0x1b2133);
 
 // Fog (starts disabled, controlled via hotbar)
 scene.fog = null;
 
-const hemi = new THREE.HemisphereLight(0xbfd7ff, 0x2a3b1f, 0.65);
-scene.add(hemi);
+// Note: Hemisphere and directional lights are now managed by DayNightCycle
+// const hemi = new THREE.HemisphereLight(0xbfd7ff, 0x2a3b1f, 0.65);
+// scene.add(hemi);
 
-const sun = new THREE.DirectionalLight(0xffffff, 0.9);
-sun.position.set(120, 180, 80);
-sun.castShadow = false;
-scene.add(sun);
+// const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+// sun.position.set(120, 180, 80);
+// sun.castShadow = false;
+// scene.add(sun);
 
 const WATER_LEVEL = -6;
 
@@ -69,7 +75,7 @@ const debugGrid = new DebugGridRenderer({
 scene.add(debugGrid.object3d);
 
 // add hotbar UI
-createHotbar({ debugGrid, scene });
+createHotbar({ debugGrid, scene, dayNightCycle });
 
 // Quick sanity inserts (dummy points)
 grid.clear();

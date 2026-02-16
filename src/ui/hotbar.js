@@ -9,10 +9,12 @@ import * as THREE from "three";
   Keep UI separate from scene logic.
 */
 
-export function createHotbar({ debugGrid, scene }) {
+export function createHotbar({ debugGrid, scene, dayNightCycle }) {
   // If reloaded, remove existing bar
   const existing = document.getElementById("hotbar");
   if (existing) existing.remove();
+
+  console.log("createHotbar called with:", { debugGrid, scene, dayNightCycle });
 
   if (!debugGrid) {
     console.error("createHotbar: debugGrid was not provided");
@@ -61,8 +63,27 @@ export function createHotbar({ debugGrid, scene }) {
       value="0" 
       style="width:100%; margin-bottom:4px; height:20px; cursor:pointer;"
     />
-    <div id="fogLabel" style="opacity:0.75; font-size:11px;">
+    <div id="fogLabel" style="opacity:0.75; font-size:11px; margin-bottom:12px;">
       Off
+    </div>
+
+    <div style="margin-bottom:4px; font-weight:600;">Time of Day</div>
+    <input 
+      id="timeSlider" 
+      type="range" 
+      min="0" 
+      max="1000" 
+      value="500" 
+      style="width:100%; margin-bottom:4px; height:20px; cursor:pointer;"
+    />
+    <div id="timeLabel" style="opacity:0.75; font-size:11px; margin-bottom:8px;">
+      12:00 - ☀️ Day
+    </div>
+    <div style="display:flex; gap:4px; flex-wrap:wrap;">
+      <button id="presetNight" style="flex:1; padding:4px 6px; font-size:10px; background:#333; color:#fff; border:none; border-radius:4px; cursor:pointer;">Night</button>
+      <button id="presetDawn" style="flex:1; padding:4px 6px; font-size:10px; background:#333; color:#fff; border:none; border-radius:4px; cursor:pointer;">Dawn</button>
+      <button id="presetNoon" style="flex:1; padding:4px 6px; font-size:10px; background:#333; color:#fff; border:none; border-radius:4px; cursor:pointer;">Noon</button>
+      <button id="presetDusk" style="flex:1; padding:4px 6px; font-size:10px; background:#333; color:#fff; border:none; border-radius:4px; cursor:pointer;">Dusk</button>
     </div>
   `;
 
@@ -102,4 +123,50 @@ export function createHotbar({ debugGrid, scene }) {
       fogLabel.textContent = `Near: ${Math.round(fogNear)}, Far: ${Math.round(fogFar)}`;
     }
   });
+
+  // Bind time slider to day/night cycle
+  if (dayNightCycle) {
+    const timeSlider = bar.querySelector("#timeSlider");
+    const timeLabel = bar.querySelector("#timeLabel");
+    
+    const updateTimeLabel = (timeOfDay) => {
+      const hours = Math.floor(timeOfDay * 24);
+      const minutes = Math.floor((timeOfDay * 24 - hours) * 60);
+      const timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+      const sunAngle = timeOfDay * Math.PI * 2 - Math.PI / 2;
+      const sunHeight = Math.sin(sunAngle);
+      const isDaytime = sunHeight > 0;
+      const period = isDaytime ? '☀️ Day' : '🌙 Night';
+      timeLabel.textContent = `${timeString} - ${period}`;
+    };
+
+    timeSlider.addEventListener("input", () => {
+      const timeOfDay = parseFloat(timeSlider.value) / 1000;
+      dayNightCycle.setTime(timeOfDay);
+      updateTimeLabel(timeOfDay);
+    });
+
+    // Bind preset buttons
+    const presets = [
+      { id: "presetNight", value: 0.0 },
+      { id: "presetDawn", value: 0.25 },
+      { id: "presetNoon", value: 0.5 },
+      { id: "presetDusk", value: 0.75 },
+    ];
+
+    presets.forEach(preset => {
+      const btn = bar.querySelector(`#${preset.id}`);
+      btn.addEventListener("click", () => {
+        timeSlider.value = preset.value * 1000;
+        dayNightCycle.setTime(preset.value);
+        updateTimeLabel(preset.value);
+      });
+      btn.addEventListener("mouseenter", () => {
+        btn.style.background = "#444";
+      });
+      btn.addEventListener("mouseleave", () => {
+        btn.style.background = "#333";
+      });
+    });
+  }
 }
