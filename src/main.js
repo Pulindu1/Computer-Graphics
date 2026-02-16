@@ -7,12 +7,16 @@ import { DebugGridRenderer } from "./spacial/debugGridRenderer.js";
 import { createHotbar } from "./ui/hotbar.js";
 import { createWater } from "./environment/water.js";
 import { DayNightCycle } from "./ui/dayNightCycle.js";
+import { makeRiverCorridor } from "./environment/riverCorridor.js";
+import { createOrbSwarm } from "./agents/orbSwarm.js";
+import { createOrbRenderer } from "./agents/orbRenderer.js";
+
 
 const { scene, camera, renderer, controls } = initThree();
 installResizeHandler(camera, renderer);
 
 // --- Day/Night Cycle ---
-const dayNightCycle = new DayNightCycle(escene, renderer);
+const dayNightCycle = new DayNightCycle(scene, renderer);
 
 // --- Scene dressing (light/fog/background) ---
 // Note: Background and some lights are now controlled by dayNightCycle
@@ -64,6 +68,22 @@ const water = createWater({
 });
 scene.add(water.mesh);
 
+// --- River corridor + Orb swarm ---
+const river = makeRiverCorridor({
+  width: 800,
+  length: 2000,
+  waterLevel: -6,
+  riverHalfWidth: 400,
+  riverMeanderAmp: 55,
+  riverMeanderWavelength: 140,
+  seedishOffset: 13.37
+});
+
+const swarm = createOrbSwarm(river, { count: 300 });
+const orbRender = createOrbRenderer({ count: swarm.count, radius: 0.6 });
+
+scene.add(orbRender.mesh);
+
 // --- Spatial grid (for later agents/obstacles) ---
 const grid = new UniformGrid(20); // cellSize in world units
 // Debug overlay to visualise discretisation
@@ -111,10 +131,15 @@ function animate() {
   requestAnimationFrame(animate);
 
   const dt = Math.min(clock.getDelta(), 0.033);
+  const time = clock.elapsedTime;
 
   // Controls damping requires update each frame
   controls.update();
   water.update(dt);
+  
+  // Update swarm and render
+  swarm.update(dt, time);
+  orbRender.updateInstances(swarm);
 
   // Move debug sphere in a circle and sample terrain height
   //   angle += dt * 0.5;
