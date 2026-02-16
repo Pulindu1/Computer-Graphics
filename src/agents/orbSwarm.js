@@ -121,15 +121,15 @@ export function createOrbSwarm(river, config = {}) {
       dx[i] += dxVel[i] * dt;
 
       // --- separation (neighbour avoidance) ---
+      const cx = river.centerX(z[i]);
+      const xw = cx + dx[i];
+      const zw = z[i];
+      const r2 = cfg.separationRadius * cfg.separationRadius;
+      let push = 0;
+
       if (spatial) {
-        const cx = river.centerX(z[i]);
-        const xw = cx + dx[i];
-        const zw = z[i];
-
-        const candidates = spatial.query(xw, zw, 1, _tmpNeighbors);
-        const r2 = cfg.separationRadius * cfg.separationRadius;
-
-        let push = 0;
+        // O(n×m) spatial hash mode
+        const candidates = spatial.queryRadius(xw, zw, cfg.separationRadius);
 
         for (let n = 0; n < candidates.length; n++) {
           const j = candidates[n];
@@ -153,9 +153,32 @@ export function createOrbSwarm(river, config = {}) {
             push += (ddx / dist) * w;
           }
         }
+      } else {
+        // O(n²) naive mode - check every other agent
+        for (let j = 0; j < N; j++) {
+          if (j === i) continue;
 
-        dxVel[i] += push * cfg.separationStrength * dt;
+          Stats.candidateChecks++; // Track every distance check
+
+          const cxj = river.centerX(z[j]);
+          const xj = cxj + dx[j];
+          const zj = z[j];
+
+          const ddx = xw - xj;
+          const ddz = zw - zj;
+          const dist2 = ddx * ddx + ddz * ddz;
+
+          if (dist2 > 0.0001 && dist2 < r2) {
+            Stats.neighborPairs++; // Track actual neighbors within radius
+            // push away laterally (signed)
+            const dist = Math.sqrt(dist2);
+            const w = (cfg.separationRadius - dist) / cfg.separationRadius; // 0..1
+            push += (ddx / dist) * w;
+          }
+        }
       }
+
+      dxVel[i] += push * cfg.separationStrength * dt;
 
       // clamp within river edges (in dx space)
       const dxClamped = river.clampDx(dx[i], margin);

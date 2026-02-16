@@ -27,20 +27,55 @@ export function createUI({
 
   // Central state object lil-gui binds to
   const params = {
+    // Debug
+    neighborMode: "hash", // "hash" | "naive"
     showSpatialGrid: true,
+    showOccupancy: false,
+    showQueryCells: false,
+    selectedAgentId: -1,
+    agentNeighborRadius: 10,
+    cellSize: 20,
+    
+    // Orbs
     agentCount: typeof getAgentCount === "function" ? getAgentCount() : 300,
     orbBrightness: typeof getBrightness === "function" ? getBrightness() : 2.0,
+    
+    // Environment
     fogIntensity: 0,
     timeOfDay: 0.5, // 0 = midnight, 0.5 = noon, 1 = midnight
   };
 
   // --- Folder: Debug ---
   const fDebug = gui.addFolder("Debug");
+  
+  fDebug
+    .add(params, "neighborMode", ["hash", "naive"])
+    .name("Neighbour mode")
+    .onChange((v) => {
+      console.log(`Switched to ${v} neighbor search`);
+    });
+  
   fDebug
     .add(params, "showSpatialGrid")
-    .name("Show spatial grid")
+    .name("Show grid")
     .onChange((v) => {
       if (debugGrid) debugGrid.setVisible(v);
+    });
+  
+  fDebug
+    .add(params, "showOccupancy")
+    .name("Heatmap occupancy")
+    .onChange((v) => {
+      console.log(`Occupancy heatmap: ${v}`);
+      // TODO: Implement heatmap visualization
+    });
+  
+  fDebug
+    .add(params, "showQueryCells")
+    .name("Show query cells")
+    .onChange((v) => {
+      console.log(`Query cells highlight: ${v}`);
+      // TODO: Implement query cell highlighting
     });
 
   // --- Folder: Orbs ---

@@ -8,7 +8,7 @@ import { createWater } from "./environment/water.js";
 import { DayNightCycle } from "./ui/dayNightCycle.js";
 import { makeRiverCorridor } from "./environment/riverCorridor.js";
 import { createOrbSwarm } from "./agents/orbSwarm.js";
-import { createSpatialHash } from "./agents/spatialHash.js";
+import { SpatialHash } from "./agents/spatialHash.js";
 import { createOrbLodRenderer } from "./agents/orbLodRenderer.js";
 import { createUI } from "./ui/ui.js";
 import { Stats } from "./stats.js";
@@ -105,7 +105,7 @@ function rebuildOrbs(agentCount) {
 
   // (re)create simulation + spatial + renderer
   swarm = createOrbSwarm(river, { count: agentCount });
-  spatial = createSpatialHash(20);
+  spatial = new SpatialHash(20);
 
   orbLOD = createOrbLodRenderer({
     count: swarm.count,
@@ -133,7 +133,7 @@ const debugGrid = new DebugGridRenderer({
 scene.add(debugGrid.object3d);
 
 // create lil-gui UI for all controls
-createUI({
+const { gui, params } = createUI({
   debugGrid,
   scene,
   dayNightCycle,
@@ -219,7 +219,9 @@ function animate() {
   water.update(dt);
   
   // update swarm (movement + separation)
-  if (swarm && spatial) swarm.update(dt, t, spatial);
+  // Pass spatial hash only if mode is "hash", otherwise pass null for naive O(n²) mode
+  const spatialToUse = params.neighborMode === "hash" ? spatial : null;
+  if (swarm) swarm.update(dt, t, spatialToUse);
   
   // update instance transforms with LOD switching
   if (orbLOD) orbLOD.updateInstances(swarm, camera);
