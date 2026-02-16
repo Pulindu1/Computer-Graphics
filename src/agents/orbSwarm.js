@@ -1,5 +1,6 @@
 // 📄 src/agents/orbSwarm.js
 import { ORB_DEFAULTS } from "./orbConfig.js";
+import { Stats } from "../stats.js";
 
 const _tmpNeighbors = [];
 
@@ -134,6 +135,8 @@ export function createOrbSwarm(river, config = {}) {
           const j = candidates[n];
           if (j === i) continue;
 
+          Stats.candidateChecks++; // Track every distance check
+
           const cxj = river.centerX(z[j]);
           const xj = cxj + dx[j];
           const zj = z[j];
@@ -143,6 +146,7 @@ export function createOrbSwarm(river, config = {}) {
           const dist2 = ddx * ddx + ddz * ddz;
 
           if (dist2 > 0.0001 && dist2 < r2) {
+            Stats.neighborPairs++; // Track actual neighbors within radius
             // push away laterally (signed)
             const dist = Math.sqrt(dist2);
             const w = (cfg.separationRadius - dist) / cfg.separationRadius; // 0..1

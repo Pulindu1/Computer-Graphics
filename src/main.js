@@ -11,6 +11,7 @@ import { createOrbSwarm } from "./agents/orbSwarm.js";
 import { createSpatialHash } from "./agents/spatialHash.js";
 import { createOrbLodRenderer } from "./agents/orbLodRenderer.js";
 import { createUI } from "./ui/ui.js";
+import { Stats } from "./stats.js";
 
 
 const { scene, camera, renderer, controls } = initThree();
@@ -172,20 +173,29 @@ gridHelper.material.transparent = true;
 gridHelper.material.opacity = 0.15;
 scene.add(gridHelper);
 
-// --- FPS Counter ---
-const fpsElement = document.getElementById('fps');
+// --- Stats Display ---
+const statsElement = document.getElementById('stats');
 let frameCount = 0;
 let lastTime = performance.now();
+let lastFrameTime = performance.now();
 
-function updateFPS() {
+function updateStatsDisplay() {
   frameCount++;
   const currentTime = performance.now();
+  const frameDelta = currentTime - lastFrameTime;
+  lastFrameTime = currentTime;
+  
+  Stats.frameMs = frameDelta;
+  
   const elapsed = currentTime - lastTime;
   
   // Update every 500ms
   if (elapsed >= 500) {
-    const fps = Math.round((frameCount * 1000) / elapsed);
-    fpsElement.textContent = `FPS: ${fps}`;
+    Stats.fps = Math.round((frameCount * 1000) / elapsed);
+    
+    statsElement.innerHTML = `FPS: ${Stats.fps} | Frame: ${Stats.frameMs.toFixed(1)}ms<br>` +
+                            `Checks: ${Stats.candidateChecks} | Pairs: ${Stats.neighborPairs} | Cells: ${Stats.queriedCells}`;
+    
     frameCount = 0;
     lastTime = currentTime;
   }
@@ -197,6 +207,9 @@ const clock = new THREE.Clock();
 function animate() {
   //this is where it should actually be for example.
   requestAnimationFrame(animate);
+
+  // Reset stats at start of frame
+  Stats.resetPerFrame();
 
   const dt = Math.min(clock.getDelta(), 0.033);
   const t = clock.elapsedTime;
@@ -222,7 +235,8 @@ function animate() {
   // Keep it static for now (cheaper + stable base).
 
   renderer.render(scene, camera);  
-  // Update FPS counter
-  updateFPS();}
+  // Update stats display
+  updateStatsDisplay();
+}
 
 animate();

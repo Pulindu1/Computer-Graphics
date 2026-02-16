@@ -1,4 +1,5 @@
 // 📄 src/agents/spatialHash.js
+import { Stats } from "../stats.js";
 
 export function createSpatialHash(cellSize = 20) {
   const inv = 1 / cellSize;
@@ -35,6 +36,7 @@ export function createSpatialHash(cellSize = 20) {
 
     for (let dz = -rCells; dz <= rCells; dz++) {
       for (let dx = -rCells; dx <= rCells; dx++) {
+        Stats.queriedCells++; // Track cells accessed
         const arr = buckets.get(key(ix + dx, iz + dz));
         if (!arr) continue;
         for (let i = 0; i < arr.length; i++) out.push(arr[i]);
