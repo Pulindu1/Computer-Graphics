@@ -103,5 +103,15 @@ export function createOrbLodRenderer({
     farMesh.instanceMatrix.needsUpdate = true;
   }
 
-  return { nearMesh, farMesh, updateInstances };
+  const baseNearIntensity = nearEmissiveIntensity;
+  const baseFarIntensity = farEmissiveIntensity;
+
+  function setBrightness(mult) {
+    // mult is the UI slider value (0..10)
+    // scale from the baseline so 1.0 keeps your original look
+    nearMat.emissiveIntensity = baseNearIntensity * mult;
+    farMat.emissiveIntensity = baseFarIntensity * mult;
+  }
+
+  return { nearMesh, farMesh, updateInstances, setBrightness };
 }

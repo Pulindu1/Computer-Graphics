@@ -4,13 +4,13 @@ import { installResizeHandler } from "./core/resize.js";
 import { createTerrain } from "./environment/terrain.js";
 import { UniformGrid } from "./spacial/uniformGrid.js";
 import { DebugGridRenderer } from "./spacial/debugGridRenderer.js";
-import { createHotbar } from "./ui/hotbar.js";
 import { createWater } from "./environment/water.js";
 import { DayNightCycle } from "./ui/dayNightCycle.js";
 import { makeRiverCorridor } from "./environment/riverCorridor.js";
 import { createOrbSwarm } from "./agents/orbSwarm.js";
 import { createSpatialHash } from "./agents/spatialHash.js";
 import { createOrbLodRenderer } from "./agents/orbLodRenderer.js";
+import { createUI } from "./ui/ui.js";
 
 
 const { scene, camera, renderer, controls } = initThree();
@@ -80,20 +80,46 @@ const river = makeRiverCorridor({
   seedishOffset: 13.37
 });
 
-const swarm = createOrbSwarm(river, { count: 300 });
+let swarm = null;
+let spatial = null;
+let orbLOD = null;
 
-// spatial grid for neighbour avoidance
-const spatial = createSpatialHash(20); // cellSize (match your uniform grid feel)
+// keep track of brightness so rebuild preserves it
+let orbBrightness = 1.0;
 
-// LOD renderer (two instanced meshes)
-const orbLOD = createOrbLodRenderer({
-  count: swarm.count,
-  lodDistance: 70,
-  hysteresis: 10
-});
+function disposeInstancedMesh(m) {
+  if (!m) return;
+  if (m.geometry) m.geometry.dispose();
+  if (m.material) m.material.dispose();
+}
 
-scene.add(orbLOD.nearMesh);
-scene.add(orbLOD.farMesh);
+function rebuildOrbs(agentCount) {
+  // remove old
+  if (orbLOD) {
+    scene.remove(orbLOD.nearMesh);
+    scene.remove(orbLOD.farMesh);
+    disposeInstancedMesh(orbLOD.nearMesh);
+    disposeInstancedMesh(orbLOD.farMesh);
+  }
+
+  // (re)create simulation + spatial + renderer
+  swarm = createOrbSwarm(river, { count: agentCount });
+  spatial = createSpatialHash(20);
+
+  orbLOD = createOrbLodRenderer({
+    count: swarm.count,
+    lodDistance: 70,
+    hysteresis: 10,
+  });
+
+  // apply current brightness setting
+  orbLOD.setBrightness(orbBrightness);
+
+  scene.add(orbLOD.nearMesh);
+  scene.add(orbLOD.farMesh);
+}
+
+rebuildOrbs(300); // initial count
 
 // --- Spatial grid (for later agents/obstacles) ---
 const grid = new UniformGrid(20); // cellSize in world units
@@ -105,8 +131,20 @@ const debugGrid = new DebugGridRenderer({
 });
 scene.add(debugGrid.object3d);
 
-// add hotbar UI
-createHotbar({ debugGrid, scene, dayNightCycle });
+// create lil-gui UI for all controls
+createUI({
+  debugGrid,
+  scene,
+  dayNightCycle,
+  getAgentCount: () => (swarm ? swarm.count : 0),
+  onSetAgentCount: (n) => rebuildOrbs(n),
+
+  getBrightness: () => orbBrightness,
+  onSetBrightness: (v) => {
+    orbBrightness = v;
+    if (orbLOD) orbLOD.setBrightness(orbBrightness);
+  },
+});
 
 // Quick sanity inserts (dummy points)
 grid.clear();
@@ -149,10 +187,10 @@ function animate() {
   water.update(dt);
   
   // update swarm (movement + separation)
-  swarm.update(dt, t, spatial);
+  if (swarm && spatial) swarm.update(dt, t, spatial);
   
   // update instance transforms with LOD switching
-  orbLOD.updateInstances(swarm, camera);
+  if (orbLOD) orbLOD.updateInstances(swarm, camera);
 
   // Move debug sphere in a circle and sample terrain height
   //   angle += dt * 0.5;
