@@ -86,6 +86,7 @@ export function createOrbSwarm(river, config = {}) {
 
   function update(dt, timeSeconds, spatial) {
     const margin = cfg.edgeMargin;
+    const r2 = cfg.separationRadius * cfg.separationRadius; // Precompute radius squared
 
     // Build spatial buckets (x,z) for neighbour queries
     if (spatial) {
@@ -121,15 +122,17 @@ export function createOrbSwarm(river, config = {}) {
       dx[i] += dxVel[i] * dt;
 
       // --- separation (neighbour avoidance) ---
+      // Cache centerX once per agent
       const cx = river.centerX(z[i]);
       const xw = cx + dx[i];
       const zw = z[i];
-      const r2 = cfg.separationRadius * cfg.separationRadius;
       let push = 0;
 
       if (spatial) {
         // O(n×m) spatial hash mode
         const candidates = spatial.queryRadius(xw, zw, cfg.separationRadius);
+        const MAX_NEIGHBORS = 24; // Cap neighbors for predictable performance
+        let found = 0;
 
         for (let n = 0; n < candidates.length; n++) {
           const j = candidates[n];
@@ -137,6 +140,7 @@ export function createOrbSwarm(river, config = {}) {
 
           Stats.candidateChecks++; // Track every distance check
 
+          // Cache centerX for neighbor j
           const cxj = river.centerX(z[j]);
           const xj = cxj + dx[j];
           const zj = z[j];
@@ -147,10 +151,13 @@ export function createOrbSwarm(river, config = {}) {
 
           if (dist2 > 0.0001 && dist2 < r2) {
             Stats.neighborPairs++; // Track actual neighbors within radius
-            // push away laterally (signed)
+            // push away laterally (signed) - compute sqrt only once
             const dist = Math.sqrt(dist2);
             const w = (cfg.separationRadius - dist) / cfg.separationRadius; // 0..1
             push += (ddx / dist) * w;
+            
+            found++;
+            if (found >= MAX_NEIGHBORS) break; // Cap neighbors for stable cost
           }
         }
       } else {
@@ -160,6 +167,7 @@ export function createOrbSwarm(river, config = {}) {
 
           Stats.candidateChecks++; // Track every distance check
 
+          // Cache centerX for neighbor j
           const cxj = river.centerX(z[j]);
           const xj = cxj + dx[j];
           const zj = z[j];
@@ -170,7 +178,7 @@ export function createOrbSwarm(river, config = {}) {
 
           if (dist2 > 0.0001 && dist2 < r2) {
             Stats.neighborPairs++; // Track actual neighbors within radius
-            // push away laterally (signed)
+            // push away laterally (signed) - compute sqrt only once
             const dist = Math.sqrt(dist2);
             const w = (cfg.separationRadius - dist) / cfg.separationRadius; // 0..1
             push += (ddx / dist) * w;

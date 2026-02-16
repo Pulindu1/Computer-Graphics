@@ -172,6 +172,41 @@ export function createTerrain({
   const mesh = new THREE.Mesh(geo, mat);
   mesh.name = "Terrain";
 
+  // IMPORTANT: heightAt should match the *smoothed* surface, not the raw sampler.
+  // We’ll sample from the height grid using bilinear interpolation.
+  const halfWidth = width / 2;
+  const halfLength = length / 2;
+  const stepWidth = width / segmentsWidth;
+  const stepLength = length / segmentsLength;
+
+  function heightAt(x, z) {
+    // convert world x,z to grid coords (0..segments)
+    const fx = (x + halfWidth) / stepWidth;
+    const fz = (z + halfLength) / stepLength;
+
+    // clamp inside grid
+    const x0 = Math.max(0, Math.min(segmentsWidth - 1, Math.floor(fx)));
+    const z0 = Math.max(0, Math.min(segmentsLength - 1, Math.floor(fz)));
+
+    const tx = fx - x0;
+    const tz = fz - z0;
+
+    const i00 = z0 * vertsWidth + x0;
+    const i10 = z0 * vertsWidth + (x0 + 1);
+    const i01 = (z0 + 1) * vertsWidth + x0;
+    const i11 = (z0 + 1) * vertsWidth + (x0 + 1);
+
+    const h00 = heights[i00];
+    const h10 = heights[i10];
+    const h01 = heights[i01];
+    const h11 = heights[i11];
+
+    // bilinear interpolation
+    const hx0 = h00 * (1 - tx) + h10 * tx;
+    const hx1 = h01 * (1 - tx) + h11 * tx;
+    return hx0 * (1 - tz) + hx1 * tz;
+  }
+
   function masksAt(x, z) {
     // if you need this later, you can also interpolate masks similarly
     return sample(x, z).masks;

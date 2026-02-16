@@ -10,10 +10,12 @@ import { createWater } from "./environment/water.js";
 import { DayNightCycle } from "./ui/dayNightCycle.js";
 import { makeRiverCorridor } from "./environment/riverCorridor.js";
 import { createOrbSwarm } from "./agents/orbSwarm.js";
+import { ORB_DEFAULTS } from "./agents/orbConfig.js";
 import { SpatialHash } from "./agents/spatialHash.js";
 import { createOrbLodRenderer } from "./agents/orbLodRenderer.js";
 import { createUI } from "./ui/ui.js";
 import { Stats } from "./stats.js";
+import { Perf } from "./perf.js";
 
 
 const { scene, camera, renderer, controls } = initThree();
@@ -118,7 +120,9 @@ function rebuildOrbs(agentCount) {
 
   // (re)create simulation + spatial + renderer
   swarm = createOrbSwarm(river, { count: agentCount });
-  spatial = new SpatialHash(20);
+  // Match cell size to neighbor radius for optimal bucketing
+  const cellSize = ORB_DEFAULTS.separationRadius * 1.25; // slightly larger
+  spatial = new SpatialHash(cellSize);
 
   orbLOD = createOrbLodRenderer({
     count: swarm.count,
@@ -209,6 +213,11 @@ let frameCount = 0;
 let lastTime = performance.now();
 let lastFrameTime = performance.now();
 
+// Performance timings
+let swarmMs = 0;
+let lodMs = 0;
+let heatmapMs = 0;
+
 function updateStatsDisplay() {
   frameCount++;
   const currentTime = performance.now();
@@ -224,7 +233,8 @@ function updateStatsDisplay() {
     Stats.fps = Math.round((frameCount * 1000) / elapsed);
     
     statsElement.innerHTML = `FPS: ${Stats.fps} | Frame: ${Stats.frameMs.toFixed(1)}ms<br>` +
-                            `Checks: ${Stats.candidateChecks} | Pairs: ${Stats.neighborPairs} | Cells: ${Stats.queriedCells}`;
+                            `Checks: ${Stats.candidateChecks} | Pairs: ${Stats.neighborPairs} | Cells: ${Stats.queriedCells}<br>` +
+                            `Swarm: ${swarmMs.toFixed(2)}ms | LOD: ${lodMs.toFixed(2)}ms | Heatmap: ${heatmapMs.toFixed(2)}ms`;
     
     frameCount = 0;
     lastTime = currentTime;
@@ -256,12 +266,20 @@ function animate() {
   // update swarm (movement + separation)
   // Pass spatial hash only if mode is "hash", otherwise pass null for naive O(n²) mode
   const spatialToUse = params.neighborMode === "hash" ? spatial : null;
-  if (swarm) swarm.update(dt, t, spatialToUse);
+  if (swarm) {
+    Perf.begin("swarm");
+    swarm.update(dt, t, spatialToUse);
+    swarmMs = Perf.end("swarm");
+  }
   
   // Update heatmap visualization
   heatmap.mesh.visible = params.showOccupancy;
   if (params.showOccupancy && spatial) {
+    Perf.begin("heatmap");
     heatmap.update(spatial.getOccupiedCells());
+    heatmapMs = Perf.end("heatmap");
+  } else {
+    heatmapMs = 0;
   }
   
   // Update query cell overlay (shows ALL cells accessed during this frame)
@@ -281,7 +299,11 @@ function animate() {
   }
   
   // update instance transforms with LOD switching
-  if (orbLOD) orbLOD.updateInstances(swarm, camera);
+  if (orbLOD) {
+    Perf.begin("lod");
+    orbLOD.updateInstances(swarm, camera);
+    lodMs = Perf.end("lod");
+  }
 
   // Move debug sphere in a circle and sample terrain height
   //   angle += dt * 0.5;
