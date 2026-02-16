@@ -28,4 +28,8 @@ export const ORB_DEFAULTS = {
   // spawning
   spawnOffsetMin: 6,       // minimum abs(dx) from centre at spawn
   spawnOffsetMax: 18,      // maximum abs(dx) from centre at spawn
+
+  // separation
+  separationRadius: 4.0,     // world-space proximity range (roughly)
+  separationStrength: 18.0,  // how hard they push away
 };

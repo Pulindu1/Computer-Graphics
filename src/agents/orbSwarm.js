@@ -1,6 +1,8 @@
 // 📄 src/agents/orbSwarm.js
 import { ORB_DEFAULTS } from "./orbConfig.js";
 
+const _tmpNeighbors = [];
+
 function rand(min, max) {
   return min + Math.random() * (max - min);
 }
@@ -81,8 +83,19 @@ export function createOrbSwarm(river, config = {}) {
     return out;
   }
 
-  function update(dt, timeSeconds) {
+  function update(dt, timeSeconds, spatial) {
     const margin = cfg.edgeMargin;
+
+    // Build spatial buckets (x,z) for neighbour queries
+    if (spatial) {
+      spatial.clear();
+      const tmp = { x: 0, y: 0, z: 0 };
+      for (let i = 0; i < N; i++) {
+        const zz = z[i];
+        const xx = river.centerX(zz) + dx[i];
+        spatial.insert(i, xx, zz);
+      }
+    }
 
     for (let i = 0; i < N; i++) {
       // forward along z
@@ -105,6 +118,40 @@ export function createOrbSwarm(river, config = {}) {
       dxVel[i] *= cfg.damping;
 
       dx[i] += dxVel[i] * dt;
+
+      // --- separation (neighbour avoidance) ---
+      if (spatial) {
+        const cx = river.centerX(z[i]);
+        const xw = cx + dx[i];
+        const zw = z[i];
+
+        const candidates = spatial.query(xw, zw, 1, _tmpNeighbors);
+        const r2 = cfg.separationRadius * cfg.separationRadius;
+
+        let push = 0;
+
+        for (let n = 0; n < candidates.length; n++) {
+          const j = candidates[n];
+          if (j === i) continue;
+
+          const cxj = river.centerX(z[j]);
+          const xj = cxj + dx[j];
+          const zj = z[j];
+
+          const ddx = xw - xj;
+          const ddz = zw - zj;
+          const dist2 = ddx * ddx + ddz * ddz;
+
+          if (dist2 > 0.0001 && dist2 < r2) {
+            // push away laterally (signed)
+            const dist = Math.sqrt(dist2);
+            const w = (cfg.separationRadius - dist) / cfg.separationRadius; // 0..1
+            push += (ddx / dist) * w;
+          }
+        }
+
+        dxVel[i] += push * cfg.separationStrength * dt;
+      }
 
       // clamp within river edges (in dx space)
       const dxClamped = river.clampDx(dx[i], margin);

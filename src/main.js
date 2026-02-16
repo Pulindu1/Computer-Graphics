@@ -9,7 +9,8 @@ import { createWater } from "./environment/water.js";
 import { DayNightCycle } from "./ui/dayNightCycle.js";
 import { makeRiverCorridor } from "./environment/riverCorridor.js";
 import { createOrbSwarm } from "./agents/orbSwarm.js";
-import { createOrbRenderer } from "./agents/orbRenderer.js";
+import { createSpatialHash } from "./agents/spatialHash.js";
+import { createOrbLodRenderer } from "./agents/orbLodRenderer.js";
 
 
 const { scene, camera, renderer, controls } = initThree();
@@ -80,9 +81,19 @@ const river = makeRiverCorridor({
 });
 
 const swarm = createOrbSwarm(river, { count: 300 });
-const orbRender = createOrbRenderer({ count: swarm.count, radius: 0.6 });
 
-scene.add(orbRender.mesh);
+// spatial grid for neighbour avoidance
+const spatial = createSpatialHash(20); // cellSize (match your uniform grid feel)
+
+// LOD renderer (two instanced meshes)
+const orbLOD = createOrbLodRenderer({
+  count: swarm.count,
+  lodDistance: 70,
+  hysteresis: 10
+});
+
+scene.add(orbLOD.nearMesh);
+scene.add(orbLOD.farMesh);
 
 // --- Spatial grid (for later agents/obstacles) ---
 const grid = new UniformGrid(20); // cellSize in world units
@@ -131,15 +142,17 @@ function animate() {
   requestAnimationFrame(animate);
 
   const dt = Math.min(clock.getDelta(), 0.033);
-  const time = clock.elapsedTime;
+  const t = clock.elapsedTime;
 
   // Controls damping requires update each frame
   controls.update();
   water.update(dt);
   
-  // Update swarm and render
-  swarm.update(dt, time);
-  orbRender.updateInstances(swarm);
+  // update swarm (movement + separation)
+  swarm.update(dt, t, spatial);
+  
+  // update instance transforms with LOD switching
+  orbLOD.updateInstances(swarm, camera);
 
   // Move debug sphere in a circle and sample terrain height
   //   angle += dt * 0.5;
