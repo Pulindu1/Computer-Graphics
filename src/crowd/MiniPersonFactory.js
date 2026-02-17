@@ -77,20 +77,22 @@ export function createMiniPersonMesh(baseColorHex = 0x3388ff) {
 export function animateHumanoid(agent, time) {
   const { parts, mesh } = agent;
   const speed = agent.vel.length();
+  const isWalking = agent.mode === 1 || agent.mode === 2; // MODE_WALK=1, MODE_FAST=2
   
-  // Face direction of movement with smooth quaternion interpolation
-  if (speed > 0.02) {
+  // Face direction of movement with smooth quaternion interpolation (always update if moving)
+  if (isWalking || speed > 0.001) {
     const targetAngle = Math.atan2(agent.vel.x, agent.vel.z);
     const targetQuat = new THREE.Quaternion().setFromAxisAngle(
       new THREE.Vector3(0, 1, 0), 
       targetAngle
     );
-    mesh.quaternion.slerp(targetQuat, 0.15); // Smooth turning
+    mesh.quaternion.slerp(targetQuat, 0.2); // Smooth turning
   }
   
-  // Walk cycle animation (based on speed and time)
-  if (speed > 0.02) {
-    const walkFreq = speed * 2.0; // Frequency based on speed (reduced from 15.0)
+  // Walk cycle animation: animate whenever in WALK or FAST mode
+  if (isWalking) {
+    // Base frequency at 2 Hz, scales with speed
+    const walkFreq = 2.0 + speed * 5.0; // Slower walks = ~2 Hz, faster = scales up
     const phase = time * walkFreq;
     
     // Leg swing (alternating)
@@ -103,16 +105,16 @@ export function animateHumanoid(agent, time) {
     parts.lArm.rotation.x = -armSwing;
     parts.rArm.rotation.x = armSwing;
     
-    // Vertical bob (walk bounce)
-    const bob = Math.abs(Math.sin(phase * 2)) * 0.08;
+    // Vertical bob (walk bounce) - more pronounced for faster movement
+    const bob = Math.abs(Math.sin(phase * 2)) * (0.05 + speed * 0.15);
     mesh.position.y = agent.pos.y + bob;
   } else {
-    // Slow down limb motion when stationary
-    parts.lLeg.rotation.x *= 0.9;
-    parts.rLeg.rotation.x *= 0.9;
-    parts.lArm.rotation.x *= 0.9;
-    parts.rArm.rotation.x *= 0.9;
-    mesh.position.y = agent.pos.y;  // Keep at proper height, don't sink
+    // Idle pose: relax limbs gradually and return to rest position
+    parts.lLeg.rotation.x *= 0.95;
+    parts.rLeg.rotation.x *= 0.95;
+    parts.lArm.rotation.x *= 0.95;
+    parts.rArm.rotation.x *= 0.95;
+    mesh.position.y = agent.pos.y;  // Keep at proper height when idle
   }
   
   // Update XZ position

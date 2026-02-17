@@ -411,8 +411,10 @@ function animate() {
   // Keep it static for now (cheaper + stable base).
 
   renderer.render(scene, camera);  
-  // Update stats display
+  
+  // Update stats displays
   updateStatsDisplay();
+  if (window.updateCrowdStats) window.updateCrowdStats();
 }
 
 animate();

@@ -49,14 +49,25 @@ export function createUI({
     
     // People (Crowd)
     peopleCount: typeof getPeopleCount === "function" ? getPeopleCount() : 40,
+    
+    // --- Phase 1: Flow-field & Advanced Crowd ---
+    enableFlowField: true,
+    enableLanes: true,
+    enablePriority: true,
+    flowWeight: 1.5,
+    laneWeight: 1.0,
     crowdSeparation: true,
+    separationWeight: 1.5,
     crowdAlignment: false,
-    crowdCohesion: false,
-    crowdQueue: true,
-    separationWeight: 3.0,
     alignmentWeight: 0.3,
+    crowdCohesion: false,
     cohesionWeight: 0.2,
-    queueWeight: 1.0,
+    crowdQueue: true,
+    queueWeight: 0.5,
+    wanderWeight: 0.3,
+    
+    // Stress test modes
+    stressTest: 40,
     
     // Environment
     fogIntensity: 0,
@@ -187,6 +198,136 @@ export function createUI({
         if (rightWalkway) rightWalkway.weights.queue = v;
       }
     });
+
+  // ─────────────────────── Phase 1: Advanced Crowd Controls ──────────────────────
+  const fCrowdAdv = gui.addFolder("Crowd (Phase 1)");
+
+  // Feature toggles
+  fCrowdAdv
+    .add(params, "enableFlowField")
+    .name("Flow-Field")
+    .onChange((v) => {
+      if (leftWalkway) leftWalkway.enableFlowField = v;
+      if (rightWalkway) rightWalkway.enableFlowField = v;
+    });
+
+  fCrowdAdv
+    .add(params, "enableLanes")
+    .name("Two-Lane Rules")
+    .onChange((v) => {
+      if (leftWalkway) leftWalkway.enableLanes = v;
+      if (rightWalkway) rightWalkway.enableLanes = v;
+    });
+
+  fCrowdAdv
+    .add(params, "enablePriority")
+    .name("Prioritized Dithering")
+    .onChange((v) => {
+      if (leftWalkway) leftWalkway.enablePriority = v;
+      if (rightWalkway) rightWalkway.enablePriority = v;
+    });
+
+  // Weight sliders for Phase 1
+  fCrowdAdv
+    .add(params, "flowWeight", 0, 3, 0.1)
+    .name("Flow Weight")
+    .onChange((v) => {
+      if (leftWalkway) leftWalkway.weights.flow = v;
+      if (rightWalkway) rightWalkway.weights.flow = v;
+    });
+
+  fCrowdAdv
+    .add(params, "laneWeight", 0, 3, 0.1)
+    .name("Lane Weight")
+    .onChange((v) => {
+      if (leftWalkway) leftWalkway.weights.lane = v;
+      if (rightWalkway) rightWalkway.weights.lane = v;
+    });
+
+  fCrowdAdv
+    .add(params, "wanderWeight", 0, 1, 0.05)
+    .name("Wander Weight")
+    .onChange((v) => {
+      if (leftWalkway) leftWalkway.weights.wander = v;
+      if (rightWalkway) rightWalkway.weights.wander = v;
+    });
+
+  // Stress test buttons
+  fCrowdAdv.add({
+    spawn100: () => {
+      if (crowdManager) {
+        crowdManager.spawnInZone(0, 50);
+        crowdManager.spawnInZone(1, 50);
+      }
+    }
+  }, "spawn100").name("Spawn 100 (50/zone)");
+
+  fCrowdAdv.add({
+    spawn500: () => {
+      if (crowdManager) {
+        crowdManager.spawnInZone(0, 250);
+        crowdManager.spawnInZone(1, 250);
+      }
+    }
+  }, "spawn500").name("Spawn 500 (250/zone)");
+
+  fCrowdAdv.add({
+    spawn1000: () => {
+      if (crowdManager) {
+        crowdManager.spawnInZone(0, 500);
+        crowdManager.spawnInZone(1, 500);
+      }
+    }
+  }, "spawn1000").name("Spawn 1000 (500/zone)");
+
+  fCrowdAdv.add({
+    spawn2000: () => {
+      if (crowdManager) {
+        crowdManager.spawnInZone(0, 1000);
+        crowdManager.spawnInZone(1, 1000);
+      }
+    }
+  }, "spawn2000").name("Spawn 2000 (1000/zone)");
+
+  // Leader spawning
+  fCrowdAdv.add({
+    spawnLeaders: () => {
+      if (crowdManager) {
+        crowdManager.spawnLeaders(0, 2);
+        crowdManager.spawnLeaders(1, 2);
+      }
+    }
+  }, "spawnLeaders").name("Add Leaders (2/zone)");
+
+  // Clear all
+  fCrowdAdv.add({
+    clearAll: () => {
+      if (crowdManager) {
+        for (let i = 0; i < crowdManager.zones.length; i++) {
+          crowdManager.removeFromZone(i, 10000);
+        }
+      }
+    }
+  }, "clearAll").name("🗑️ Clear All");
+
+  // Debug stats display
+  const statsDisplay = document.createElement("div");
+  statsDisplay.id = "crowd-stats";
+  statsDisplay.style.cssText = "position:fixed; top:10px; right:10px; background:rgba(0,0,0,0.7); color:#0f0; font-family:monospace; padding:10px; font-size:12px; z-index:999;";
+  document.body.appendChild(statsDisplay);
+
+  // Update stats every frame (will be called from main loop)
+  window.updateCrowdStats = () => {
+    if (crowdManager) {
+      const stats = crowdManager.stats;
+      statsDisplay.innerHTML = `
+        <b>Crowd Stats</b><br>
+        Agents: ${stats.totalAgents}<br>
+        Queries: ${stats.totalQueries}<br>
+        Avg Neighbors: ${stats.avgNeighborsPerQuery.toFixed(1)}
+      `;
+    }
+  };
 
   // --- Folder: Environment ---
   const fEnv = gui.addFolder("Environment");
