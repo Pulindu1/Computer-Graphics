@@ -53,9 +53,9 @@ export function createUI({
     crowdAlignment: false,
     crowdCohesion: false,
     crowdQueue: true,
-    separationWeight: 1.5,
-    alignmentWeight: 0.5,
-    cohesionWeight: 0.3,
+    separationWeight: 3.0,
+    alignmentWeight: 0.3,
+    cohesionWeight: 0.2,
     queueWeight: 1.0,
     
     // Environment

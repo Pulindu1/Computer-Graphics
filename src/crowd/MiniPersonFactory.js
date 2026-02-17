@@ -112,7 +112,7 @@ export function animateHumanoid(agent, time) {
     parts.rLeg.rotation.x *= 0.9;
     parts.lArm.rotation.x *= 0.9;
     parts.rArm.rotation.x *= 0.9;
-    mesh.position.y *= 0.9;
+    mesh.position.y = agent.pos.y;  // Keep at proper height, don't sink
   }
   
   // Update XZ position

@@ -3,20 +3,33 @@ import * as THREE from "three";
 import { createMiniPersonMesh, animateHumanoid } from "./MiniPersonFactory.js";
 import { SpatialHashGrid } from "./SpatialHashGrid.js";
 
+// ── Speed modes ──────────────────────────────────────────────
+const MODE_IDLE = 0;
+const MODE_WALK = 1;
+const MODE_FAST = 2;
+
+const MODE_SPEEDS  = [0, 0.01, 0.05];  // Much slower: stationary, slow walk, brisk walk
+const MODE_LABELS  = ["idle", "walk", "fast"];
+
 /**
- * Manages a crowd of agents on a walkway following a spline path
+ * Manages a crowd of agents on a walkway with:
+ *  - Free roaming (random wander within corridor)
+ *  - Flocking (separation, alignment, cohesion)
+ *  - Hard collision avoidance (body radius)
+ *  - Speed modes (stationary / walking / fast walking)
+ *  - Hard path containment
  */
 export class WalkwayZone {
   constructor({
     scene,
-    curve,                    // CatmullRomCurve3 for walkway centerline
-    corridorWidth = 6.0,      // walkable width
-    laneOffsets = [-1.2, 1.2], // left/right lane positions
-    yOffset = 0.12,           // lift above platform
-    lookAheadT = 0.01,        // spline lookahead distance
-    neighborRadius = 4.0,
-    brakeRadius = 2.0,
-    platformHeight = -0.8,    // base height of walkway
+    curve,
+    corridorWidth = 6.0,
+    laneOffsets = [-2, 0, 2],
+    yOffset = 0.12,
+    lookAheadT = 0.01,
+    neighborRadius = 5.0,
+    brakeRadius = 3.0,
+    platformHeight = -0.8,
   } = {}) {
     this.scene = scene;
     this.curve = curve;
@@ -27,390 +40,369 @@ export class WalkwayZone {
     this.neighborRadius = neighborRadius;
     this.brakeRadius = brakeRadius;
     this.platformHeight = platformHeight;
-    
+
+    // Hard-collision body radius (at 12× scale, person is ~3.6 wide)
+    this.bodyRadius = 1.4;
+
     this.agents = [];
     this.grid = new SpatialHashGrid(neighborRadius);
-    
-    // Tunable weights (will be exposed to UI)
+
+    // Tunable weights (exposed to UI)
     this.weights = {
-      path: 1.0,
-      contain: 2.0,
-      sep: 1.5,
-      ali: 0.5,
-      coh: 0.3,
-      queue: 1.0,
+      wander:  0.8,
+      sep:     3.0,
+      ali:     0.3,
+      coh:     0.2,
+      queue:   1.0,
     };
   }
-  
-  /**
-   * Spawn n agents on the walkway
-   */
+
+  // ─────────────────────────── spawn / remove ──────────────────────────
   spawn(count) {
+    const palette = [0x3388ff, 0xff8833, 0x33aa55, 0xcc4444, 0x8855cc, 0xddaa33];
+
     for (let i = 0; i < count; i++) {
-      const { mesh, parts, bodyMat, skinMat } = createMiniPersonMesh(
-        Math.random() < 0.5 ? 0x3388ff : 0xff8833
-      );
-      
-      // Random starting position along curve
-      const t = Math.random();
-      const dir = Math.random() < 0.5 ? 1 : -1;
-      const lane = this.laneOffsets[Math.floor(Math.random() * this.laneOffsets.length)];
-      
-      const pos = this.getPathTarget(t, lane).targetPos;
-      
+      const color = palette[Math.floor(Math.random() * palette.length)];
+      const { mesh, parts, bodyMat, skinMat } = createMiniPersonMesh(color);
+
+      const t          = Math.random();
+      const laneOffset = (Math.random() - 0.5) * (this.corridorWidth - 2);
+      const pos        = this.getPathTarget(t, laneOffset).targetPos;
+
+      // Pick an initial speed mode
+      const mode = Math.random() < 0.15 ? MODE_IDLE
+                 : Math.random() < 0.70 ? MODE_WALK
+                 : MODE_FAST;
+
       const agent = {
         // Physics
-        pos: pos.clone(),
-        vel: new THREE.Vector3(),
-        acc: new THREE.Vector3(),
-        
-        // Walkway navigation
-        t: t,
-        dir: dir,
-        lane: lane,
-        laneOffset: lane,
-        desiredSpeed: 8 + Math.random() * 1.0,
-        maxSpeed: 5.0,
-        maxForce: 0.15,
-        
+        pos:  pos.clone(),
+        vel:  new THREE.Vector3(),
+        acc:  new THREE.Vector3(),
+
+        // Navigation
+        t:          t,
+        dir:        Math.random() < 0.5 ? 1 : -1,
+        laneOffset: laneOffset,
+
+        // Speed-mode state machine
+        mode:         mode,
+        desiredSpeed: MODE_SPEEDS[mode],
+        maxSpeed:     1.0,  // Much lower max speed
+        maxForce:     0.08,
+        modeTimer:    200 + Math.random() * 400, // frames until next mode change
+
+        // Wander state
+        wanderAngle: Math.random() * Math.PI * 2,
+
         // Rendering
-        mesh: mesh,
-        parts: parts,
-        bodyMat: bodyMat,
-        skinMat: skinMat,
+        mesh, parts, bodyMat, skinMat,
       };
-      
+
       mesh.position.copy(pos);
       this.scene.add(mesh);
       this.agents.push(agent);
     }
   }
-  
-  /**
-   * Remove n agents
-   */
+
   remove(count) {
     for (let i = 0; i < count && this.agents.length > 0; i++) {
       const agent = this.agents.pop();
       this.scene.remove(agent.mesh);
-      // Dispose geometry and materials
-      agent.mesh.traverse((obj) => {
-        if (obj.geometry) obj.geometry.dispose();
-        if (obj.material) obj.material.dispose();
+      agent.mesh.traverse((o) => {
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) o.material.dispose();
       });
     }
   }
-  
-  /**
-   * Main update loop
-   */
+
+  // ─────────────────────────── update loop ──────────────────────────
   update(dt, time) {
-    // Rebuild spatial grid
+    // Rebuild spatial hash
     this.grid.clear();
-    for (const agent of this.agents) {
-      this.grid.insert(agent);
-    }
-    
-    // Update each agent
-    for (const agent of this.agents) {
-      this.stepAgent(agent, dt, time);
-    }
+    for (const a of this.agents) this.grid.insert(a);
+
+    for (const a of this.agents) this.stepAgent(a, dt, time);
   }
-  
-  /**
-   * Step individual agent (steering + physics + animation)
-   */
+
   stepAgent(agent, dt, time) {
+    // 1. Maybe switch speed mode
+    this.updateMode(agent);
+
+    // 2. Gather neighbors
     const neighbors = this.grid.query(agent);
-    
-    // Compute steering forces
+
+    // 3. Steering
     const steer = this.computeSteering(agent, neighbors);
-    
-    // Apply force
     agent.acc.add(steer);
-    
-    // Integrate physics
+
+    // 4. Integrate physics
     this.integrate(agent, dt);
-    
-    // Update spline progress
-    this.updateSplineProgress(agent, dt);
-    
-    // Animate mesh (handles position update internally)
+
+    // 5. Hard collision push (prevent body overlap)
+    this.resolveCollisions(agent, neighbors);
+
+    // 6. Hard corridor clamp
+    this.clampToPath(agent);
+
+    // 7. Sync spline parameter from position
+    this.syncSplineProgress(agent);
+
+    // 8. Animate humanoid mesh
     animateHumanoid(agent, time);
   }
-  
-  /**
-   * Compute steering forces with priority-based arbitration
-   */
+
+  // ───────────────── speed-mode state machine ─────────────────
+  updateMode(agent) {
+    agent.modeTimer--;
+    if (agent.modeTimer > 0) return;
+
+    const roll = Math.random();
+    if (roll < 0.15) {
+      agent.mode      = MODE_IDLE;
+      agent.modeTimer = 120 + Math.random() * 300;   // idle a bit longer
+    } else if (roll < 0.75) {
+      agent.mode      = MODE_WALK;
+      agent.modeTimer = 200 + Math.random() * 500;
+    } else {
+      agent.mode      = MODE_FAST;
+      agent.modeTimer = 100 + Math.random() * 200;
+    }
+    agent.desiredSpeed = MODE_SPEEDS[agent.mode];
+
+    // Occasionally reverse direction
+    if (Math.random() < 0.3) agent.dir *= -1;
+  }
+
+  // ────────────────── combined steering ──────────────────
   computeSteering(agent, neighbors) {
     const force = new THREE.Vector3();
-    
-    // Get path info
-    const pathTarget = this.getPathTarget(agent.t + agent.dir * this.lookAheadT, agent.laneOffset);
-    
-    // 1. CRITICAL: Containment (prevent falling off platform) - highest priority
-    const containForce = this.containmentForce(agent, pathTarget);
-    force.add(containForce.multiplyScalar(this.weights.contain));
-    
-    // 2. HIGH: Separation (avoid crowding)
-    const sepForce = this.separationForce(agent, neighbors);
-    force.add(sepForce.multiplyScalar(this.weights.sep));
-    
-    // 3. MEDIUM: Path following (primary navigation)
-    const pathForce = this.seekForce(agent, pathTarget.targetPos, 2.0);
-    force.add(pathForce.multiplyScalar(this.weights.path));
-    
-    // 4. LOW: Alignment (flow with neighbors)
+    const pathInfo = this.getPathTarget(agent.t, 0);
+
+    // Separation – strongest, prevents overlap
+    const sep = this.separationForce(agent, neighbors);
+    force.add(sep.multiplyScalar(this.weights.sep));
+
+    // Wander – random roaming along/across path
+    if (agent.mode !== MODE_IDLE) {
+      const wan = this.wanderForce(agent, pathInfo);
+      force.add(wan.multiplyScalar(this.weights.wander));
+    }
+
+    // Alignment
     if (this.weights.ali > 0) {
-      const aliForce = this.alignmentForce(agent, neighbors);
-      force.add(aliForce.multiplyScalar(this.weights.ali));
+      const ali = this.alignmentForce(agent, neighbors);
+      force.add(ali.multiplyScalar(this.weights.ali));
     }
-    
-    // 5. LOW: Cohesion (group together)
+
+    // Cohesion
     if (this.weights.coh > 0) {
-      const cohForce = this.cohesionForce(agent, neighbors);
-      force.add(cohForce.multiplyScalar(this.weights.coh));
+      const coh = this.cohesionForce(agent, neighbors);
+      force.add(coh.multiplyScalar(this.weights.coh));
     }
-    
-    // 6. QUEUEING: Brake if agent ahead
-    if (this.weights.queue > 0) {
-      const queueForce = this.queueingForce(agent, neighbors, pathTarget.tangent);
-      force.add(queueForce.multiplyScalar(this.weights.queue));
+
+    // Queueing – brake behind someone
+    if (this.weights.queue > 0 && agent.mode !== MODE_IDLE) {
+      const q = this.queueingForce(agent, neighbors, pathInfo.tangent);
+      force.add(q.multiplyScalar(this.weights.queue));
     }
-    
-    // Clamp total force
+
     return this.clampForce(force, agent.maxForce);
   }
-  
-  /**
-   * Get target position on path at parameter t with lane offset
-   */
-  getPathTarget(t, laneOffset) {
-    t = THREE.MathUtils.clamp(t, 0, 1);
-    
-    const center = this.curve.getPointAt(t);
-    const tangent = this.curve.getTangentAt(t).normalize();
-    const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
-    
-    const targetPos = center.clone().add(normal.multiplyScalar(laneOffset));
-    targetPos.y = this.platformHeight + this.yOffset;
-    
-    return { targetPos, tangent, normal, center };
+
+  // ────────────────── wander ──────────────────
+  wanderForce(agent, pathInfo) {
+    const { tangent, normal } = pathInfo;
+
+    // More aggressive wander angle evolution for truly random movement
+    agent.wanderAngle += (Math.random() - 0.5) * 0.8;
+
+    // Reduce rigid path-following, add more freedom
+    // Forward component with some randomness
+    const forwardBias = agent.dir * (0.5 + Math.random() * 0.5);
+    const forward = tangent.clone().multiplyScalar(forwardBias);
+
+    // Stronger lateral wander for more organic, less predictable movement
+    const lateral = normal.clone().multiplyScalar(Math.sin(agent.wanderAngle) * 0.8);
+
+    const desired = forward.add(lateral).normalize().multiplyScalar(agent.desiredSpeed);
+    return desired.sub(agent.vel);
   }
-  
-  /**
-   * Seek force toward target with arrival
-   */
-  seekForce(agent, target, slowRadius) {
-    const desired = target.clone().sub(agent.pos);
-    const dist = desired.length();
-    
-    if (dist < 0.01) return new THREE.Vector3();
-    
-    desired.normalize();
-    
-    // Arrival behavior
-    if (dist < slowRadius) {
-      desired.multiplyScalar(agent.desiredSpeed * (dist / slowRadius));
-    } else {
-      desired.multiplyScalar(agent.desiredSpeed);
-    }
-    
-    const steer = desired.sub(agent.vel);
-    return steer;
-  }
-  
-  /**
-   * Containment force (push back if too far from lane)
-   */
-  containmentForce(agent, pathTarget) {
-    const { center, normal } = pathTarget;
-    
-    // Calculate lateral distance from center
-    const toAgent = agent.pos.clone().sub(center);
-    toAgent.y = 0; // project to XZ
-    const lateral = toAgent.dot(normal);
-    
-    const maxLat = this.corridorWidth / 2 - 0.5; // margin
-    
-    if (Math.abs(lateral) > maxLat) {
-      // Push back toward center
-      const pushDir = normal.clone().multiplyScalar(-Math.sign(lateral));
-      return pushDir.multiplyScalar(2.0);
-    }
-    
-    return new THREE.Vector3();
-  }
-  
-  /**
-   * Separation force (avoid nearby agents)
-   */
+
+  // ────────────────── separation ──────────────────
   separationForce(agent, neighbors) {
     const force = new THREE.Vector3();
+    const minDist = this.bodyRadius * 2;
     let count = 0;
-    
+
     for (const other of neighbors) {
       if (other === agent) continue;
-      
+
       const diff = agent.pos.clone().sub(other.pos);
-      diff.y = 0; // ignore vertical
+      diff.y = 0;
       const dist = diff.length();
-      
-      if (dist > 0 && dist < this.neighborRadius) {
-        diff.normalize();
-        diff.divideScalar(dist); // weight by inverse distance
-        force.add(diff);
-        count++;
-      }
+      if (dist < 0.01 || dist >= this.neighborRadius) continue;
+
+      // Much stronger push when bodies overlap
+      const strength = dist < minDist
+        ? ((minDist - dist) / minDist) * 4.0   // overlap → big push
+        : 1.0 / (dist * dist);                  // further → gentle
+
+      diff.normalize().multiplyScalar(strength);
+      force.add(diff);
+      count++;
     }
-    
-    if (count > 0) {
-      force.divideScalar(count);
-      if (force.length() > 0) {
-        force.normalize().multiplyScalar(agent.desiredSpeed);
-        force.sub(agent.vel);
-      }
-    }
-    
+
+    if (count > 0) force.divideScalar(count);
     return force;
   }
-  
-  /**
-   * Alignment force (match neighbor velocities)
-   */
+
+  // ────────────────── alignment ──────────────────
   alignmentForce(agent, neighbors) {
-    const avgVel = new THREE.Vector3();
+    const avg = new THREE.Vector3();
     let count = 0;
-    
+
     for (const other of neighbors) {
       if (other === agent) continue;
-      const dist = agent.pos.distanceTo(other.pos);
-      if (dist > 0 && dist < this.neighborRadius) {
-        avgVel.add(other.vel);
-        count++;
+      const d = agent.pos.distanceTo(other.pos);
+      if (d > 0 && d < this.neighborRadius) { avg.add(other.vel); count++; }
+    }
+
+    if (count > 0) {
+      avg.divideScalar(count);
+      if (avg.length() > 0.01) {
+        avg.normalize().multiplyScalar(agent.desiredSpeed);
+        return avg.sub(agent.vel);
       }
     }
-    
-    if (count > 0) {
-      avgVel.divideScalar(count);
-      avgVel.normalize().multiplyScalar(agent.desiredSpeed);
-      const steer = avgVel.sub(agent.vel);
-      return steer;
-    }
-    
     return new THREE.Vector3();
   }
-  
-  /**
-   * Cohesion force (move toward center of neighbors)
-   */
+
+  // ────────────────── cohesion ──────────────────
   cohesionForce(agent, neighbors) {
-    const centerOfMass = new THREE.Vector3();
+    const com = new THREE.Vector3();
     let count = 0;
-    
+
     for (const other of neighbors) {
       if (other === agent) continue;
-      const dist = agent.pos.distanceTo(other.pos);
-      if (dist > 0 && dist < this.neighborRadius) {
-        centerOfMass.add(other.pos);
-        count++;
+      const d = agent.pos.distanceTo(other.pos);
+      if (d > 0 && d < this.neighborRadius) { com.add(other.pos); count++; }
+    }
+
+    if (count > 0) {
+      com.divideScalar(count).sub(agent.pos);
+      if (com.length() > 0.01) {
+        com.normalize().multiplyScalar(agent.desiredSpeed);
+        return com.sub(agent.vel);
       }
     }
-    
-    if (count > 0) {
-      centerOfMass.divideScalar(count);
-      const desired = centerOfMass.sub(agent.pos);
-      desired.normalize().multiplyScalar(agent.desiredSpeed);
-      const steer = desired.sub(agent.vel);
-      return steer;
-    }
-    
     return new THREE.Vector3();
   }
-  
-  /**
-   * Queueing force (brake if agent ahead in path)
-   */
+
+  // ────────────────── queueing ──────────────────
   queueingForce(agent, neighbors, tangent) {
-    const brakeForce = new THREE.Vector3();
-    
+    const brake = new THREE.Vector3();
+    const moveDir = tangent.clone().multiplyScalar(agent.dir);
+
     for (const other of neighbors) {
       if (other === agent) continue;
-      
-      const toOther = other.pos.clone().sub(agent.pos);
-      toOther.y = 0;
-      const dist = toOther.length();
-      
-      if (dist > 0 && dist < this.brakeRadius) {
-        // Check if other is ahead in direction of travel
-        toOther.normalize();
-        const ahead = toOther.dot(tangent);
-        
-        if (ahead > 0.5) {
-          // Other is ahead, apply braking
-          const brakeMagnitude = (this.brakeRadius - dist) / this.brakeRadius;
-          brakeForce.add(agent.vel.clone().multiplyScalar(-brakeMagnitude * 0.5));
-        }
+      const toO = other.pos.clone().sub(agent.pos);
+      toO.y = 0;
+      const dist = toO.length();
+      if (dist < 0.01 || dist >= this.brakeRadius) continue;
+
+      toO.normalize();
+      if (toO.dot(moveDir) > 0.3) {
+        const mag = (this.brakeRadius - dist) / this.brakeRadius;
+        brake.add(agent.vel.clone().multiplyScalar(-mag * 0.6));
       }
     }
-    
-    return brakeForce;
+    return brake;
   }
-  
-  /**
-   * Clamp force magnitude
-   */
-  clampForce(vec, maxForce) {
-    if (vec.length() > maxForce) {
-      vec.normalize().multiplyScalar(maxForce);
+
+  // ────────────────── hard collision resolution ──────────────────
+  resolveCollisions(agent, neighbors) {
+    const minDist = this.bodyRadius * 2;
+
+    for (const other of neighbors) {
+      if (other === agent) continue;
+      const diff = agent.pos.clone().sub(other.pos);
+      diff.y = 0;
+      const dist = diff.length();
+
+      if (dist > 0.01 && dist < minDist) {
+        const overlap = minDist - dist;
+        const push = diff.normalize().multiplyScalar(overlap * 0.5);
+        agent.pos.add(push);
+      }
     }
-    return vec;
   }
-  
-  /**
-   * Integrate physics (Euler) with improved clamping
-   */
+
+  // ────────────────── path helpers ──────────────────
+  getPathTarget(t, laneOffset) {
+    t = THREE.MathUtils.clamp(t, 0, 1);
+
+    const center  = this.curve.getPointAt(t);
+    const tangent = this.curve.getTangentAt(t).normalize();
+    const normal  = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+
+    const targetPos = center.clone().add(normal.clone().multiplyScalar(laneOffset));
+    targetPos.y = this.platformHeight + this.yOffset;
+
+    return { targetPos, tangent, normal: normal.clone(), center };
+  }
+
+  clampToPath(agent) {
+    const { center, normal, tangent } = this.getPathTarget(agent.t, 0);
+
+    const toAgent = agent.pos.clone().sub(center);
+    toAgent.y = 0;
+    const lateral = toAgent.dot(normal);
+
+    const maxLat = this.corridorWidth / 2 - 0.2;
+    const clamped = THREE.MathUtils.clamp(lateral, -maxLat, maxLat);
+
+    // Reconstruct position
+    agent.pos.copy(center);
+    agent.pos.add(normal.clone().multiplyScalar(clamped));
+    agent.pos.y = this.platformHeight + this.yOffset;
+
+    // If we hit the edge, redirect velocity along path
+    if (Math.abs(lateral) > maxLat) {
+      const along = agent.vel.dot(tangent);
+      agent.vel.copy(tangent).multiplyScalar(along * 0.7);
+    }
+  }
+
+  // ────────────────── physics ──────────────────
+  clampForce(v, max) {
+    if (v.length() > max) v.normalize().multiplyScalar(max);
+    return v;
+  }
+
   integrate(agent, dt) {
-    // Velocity update
     agent.vel.add(agent.acc.clone().multiplyScalar(dt));
-    
-    // Clamp speed
+
+    // Extra drag when idle so agents actually stop
+    if (agent.mode === MODE_IDLE) agent.vel.multiplyScalar(0.9);
+
     const speed = agent.vel.length();
-    if (speed > agent.maxSpeed) {
-      agent.vel.normalize().multiplyScalar(agent.maxSpeed);
-    }
-    
-    // Position update
+    if (speed > agent.maxSpeed) agent.vel.normalize().multiplyScalar(agent.maxSpeed);
+
     agent.pos.add(agent.vel.clone().multiplyScalar(dt));
-    
-    // Reset acceleration
     agent.acc.set(0, 0, 0);
   }
-  
-  /**
-   * Update spline progress based on actual movement
-   */
-  updateSplineProgress(agent, dt) {
-    const tSpeedScale = 0.08; // tunable - how fast agent moves along spline parameter
-    const speed = agent.vel.length();
-    
-    // Move along spline based on actual speed
-    agent.t += agent.dir * speed * tSpeedScale * dt;
-    
-    // Handle end of path (turn around with smooth transition)
-    if (agent.t > 1.0) {
-      agent.t = 1.0;
-      agent.dir = -1;
-      // Randomly switch lanes 30% of the time
-      if (Math.random() < 0.3) {
-        agent.laneOffset = this.laneOffsets[Math.floor(Math.random() * this.laneOffsets.length)];
-      }
-    } else if (agent.t < 0.0) {
-      agent.t = 0.0;
-      agent.dir = 1;
-      if (Math.random() < 0.3) {
-        agent.laneOffset = this.laneOffsets[Math.floor(Math.random() * this.laneOffsets.length)];
-      }
-    }
+
+  // ── Sync spline t from world-space velocity ──
+  syncSplineProgress(agent) {
+    const { tangent } = this.getPathTarget(agent.t, 0);
+    const along = agent.vel.dot(tangent);
+
+    const tScale = 0.003;          // slow parameter change
+    agent.t += along * tScale;
+
+    // Bounce at ends
+    if (agent.t > 0.98) { agent.t = 0.98; agent.dir = -1; }
+    else if (agent.t < 0.02) { agent.t = 0.02; agent.dir = 1; }
   }
 }

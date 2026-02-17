@@ -128,8 +128,8 @@ const crowdManager = new CrowdManager();
 const leftWalkway = new WalkwayZone({
   scene: scene,
   curve: walkwayCurves.leftCurve,
-  corridorWidth: 18,  // Slightly less than platform width (20) for margin
-  laneOffsets: [-4, 0, 4], // Three lanes
+  corridorWidth: 8,  // Narrow path - only 2-3 people can pass
+  laneOffsets: [-2, 0, 2], // Three tight lanes
   yOffset: 0.15,
   lookAheadT: 0.01,
   neighborRadius: 3.0,
@@ -141,8 +141,8 @@ const leftWalkway = new WalkwayZone({
 const rightWalkway = new WalkwayZone({
   scene: scene,
   curve: walkwayCurves.rightCurve,
-  corridorWidth: 18,
-  laneOffsets: [-4, 0, 4],
+  corridorWidth: 8,
+  laneOffsets: [-2, 0, 2],
   yOffset: 0.15,
   lookAheadT: 0.01,
   neighborRadius: 3.0,
