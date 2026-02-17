@@ -18,6 +18,7 @@ import { createOrbLodRenderer } from "./agents/orbLodRenderer.js";
 import { CrowdManager } from "./crowd/CrowdManager.js";
 import { WalkwayZone } from "./crowd/CrowdZoneWalkway.js";
 import { StreetLampSystem } from "./environment/StreetLampSystem.js";
+import { StreetDistrict } from "./world/streetDistrict.js";
 import { createUI } from "./ui/ui.js";
 import { Stats } from "./stats.js";
 import { Perf } from "./perf.js";
@@ -169,6 +170,21 @@ const streetLamps = new StreetLampSystem({
   platformHeight: 5.0, // Match the walkway platform height
 });
 
+// --- Street District: procedural hilltop street with houses ---
+const streetDistrict = new StreetDistrict({
+  scene: scene,
+  terrain: terrain,
+  params: {
+    centerX: 350,    // Further out on hilltop plateau (towards world edge for true peak)
+    centerZ: 200,    // Hilltop center Z (along walkway direction)
+    streetWidth: 50,  // Much larger platform
+    streetLength: 300,  // Half the hill length
+    shoulderWidth: 40,
+    enabled: true,
+  },
+});
+streetDistrict.generate();
+
 // Enable shadows for lighting to work
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -294,6 +310,9 @@ const { gui, params } = createUI({
   
   // Street lamps
   streetLamps,
+  
+  // Street district
+  streetDistrict,
 });
 
 // Quick sanity inserts (dummy points)
@@ -380,6 +399,9 @@ function animate() {
   
   // Update crowd simulation
   crowdManager.update(dt, t);
+  
+  // Update street district (LOD updates)
+  streetDistrict.update(camera);
   
   // Update street lamps (light pool + shadow LOD)
   streetLamps.update(camera);

@@ -30,6 +30,7 @@ export function createUI({
   getPeopleCount,
   onSetPeopleCount,
   streetLamps,
+  streetDistrict,
 } = {}) {
   const gui = new GUI({ title: "Swarm Controls" });
 
@@ -76,6 +77,9 @@ export function createUI({
     shadowRadius: 25.0,
     shadowsEnabled: true,
     debugLampAOI: false,
+    
+    // Street District
+    districtEnabled: true,
     
     // Environment
     fogIntensity: 0,
@@ -403,6 +407,18 @@ export function createUI({
       `;
     }
   };
+
+  // --- Folder: Street District ---
+  const fDistrict = gui.addFolder("Street District");
+  
+  fDistrict
+    .add(params, "districtEnabled")
+    .name("Enabled")
+    .onChange((v) => {
+      if (streetDistrict) {
+        streetDistrict.setEnabled(v);
+      }
+    });
 
   // --- Folder: Environment ---
   const fEnv = gui.addFolder("Environment");

@@ -177,5 +177,15 @@ export function createTerrain({
     return sample(x, z).masks;
   }
 
-  return { mesh, heightAt, masksAt, terrainField };
+  return {
+    mesh,
+    heightAt,
+    masksAt,
+    terrainField,
+    sampler: { sample },           // Expose sampler for street district terrain flattening
+    geometry: geo,                  // Expose geometry for street district mesh modification
+    heights,                        // Expose height grid for street flattening
+    vertsWidth,
+    vertsLength,
+  };
 }
