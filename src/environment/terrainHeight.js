@@ -42,9 +42,9 @@ export function createTerrainSampler(params = {}) {
     walkwayBlend: 20,    // Increased from 5 for smoother transitions
     walkwayLift: 0.3,    // Reduced from 0.9 for flatter path
 
-    // Hills shaping (asymmetry)
-    leftHillMultiplier: 1.1,
-    rightHillMultiplier: 1.65,
+    // Hills shaping (symmetrical)
+    leftHillMultiplier: 1.4,
+    rightHillMultiplier: 1.4,
 
     // NEW: valleyMaxHeight is now a *bounded* height (not a slope coefficient)
     valleyMaxHeight: 180, // try 140..260 for steeper/less steep
@@ -69,9 +69,9 @@ export function createTerrainSampler(params = {}) {
       Math.cos((z - p.seedishOffset) / (p.baseWavelength * 0.95)) * (p.baseAmplitude * 0.55) +
       Math.sin((x + z) / p.secondaryWavelength) * p.secondaryAmplitude;
 
-    // Asymmetry: right side hillier
-    const sideMul = x < cx ? p.leftHillMultiplier : p.rightHillMultiplier;
-
+    // Asymmetry: right side hillier (now equal for symmetry)
+    const sideMul = 1.0; // Both sides equal
+    
     // --- Valley profile (bounded, "flat then steep") ---
     // 1) subtract floodplain
     const rampD = Math.max(0, d - p.floodplainWidth);
@@ -79,10 +79,26 @@ export function createTerrainSampler(params = {}) {
     const tRamp = smoothstep(0, p.rampWidth, rampD);
     // 3) make it steeper
     const steepRamp = Math.pow(tRamp, p.rampPower);
-    // 4) asymmetry of valley rise
-    const slopeMul = x < cx ? 0.85 : 1.25;
+    // 4) symmetrical slope rise (both sides equal)
+    const slopeMul = 1.05;
 
     const valley = steepRamp * p.valleyMaxHeight * slopeMul;
+    
+    // --- Peak plateau: create flat platform at the peak on either side ---
+    // Terrain rises naturally to peak, then stays flat (plateau)
+    // plateauStart: where plateau begins (at the peak)
+    // Beyond this distance, clamp height to peak value
+    const plateauStart = 280;
+    const plateauHeight = base * sideMul + valley; // Calculate height at plateauStart
+    
+    let finalHill;
+    if (d >= plateauStart) {
+      // Beyond peak: stay at plateau height (flat)
+      finalHill = plateauHeight;
+    } else {
+      // Before peak: natural rising terrain
+      finalHill = base * sideMul + valley;
+    }
 
     // Smooth "river mask": 1 at centre, fades to 0 outside (halfWidth+blend)
     const riverInner = p.riverHalfWidth;
@@ -98,7 +114,7 @@ export function createTerrainSampler(params = {}) {
       (1.0 - smoothstep(wOut, wOut + p.walkwayBlend, d));
 
     // Start with terrain (land height)
-    let y = base * sideMul + valley;
+    let y = finalHill;
 
     // --- River: force a flat water surface at waterLevel ---
     // We blend the land height toward a constant water level using riverMask.
