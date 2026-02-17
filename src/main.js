@@ -17,6 +17,7 @@ import { SpatialHash } from "./agents/spatialHash.js";
 import { createOrbLodRenderer } from "./agents/orbLodRenderer.js";
 import { CrowdManager } from "./crowd/CrowdManager.js";
 import { WalkwayZone } from "./crowd/CrowdZoneWalkway.js";
+import { StreetLampSystem } from "./environment/StreetLampSystem.js";
 import { createUI } from "./ui/ui.js";
 import { Stats } from "./stats.js";
 import { Perf } from "./perf.js";
@@ -157,6 +158,25 @@ crowdManager.addZone(rightWalkway);
 leftWalkway.spawn(20);
 rightWalkway.spawn(20);
 
+// --- Street Lamp System ---
+const streetLamps = new StreetLampSystem({
+  scene: scene,
+  walkwayA: walkwayCurves.leftCurve,
+  walkwayB: walkwayCurves.rightCurve,
+  terrainHeightAt: terrain.heightAt,
+  riverCenterX: river.centerX,
+  riverHalfWidth: river.halfWidth,
+  platformHeight: 5.0, // Match the walkway platform height
+});
+
+// Enable shadows for lighting to work
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+// Walkway platforms should receive shadows
+walkways.leftMesh.receiveShadow = true;
+walkways.rightMesh.receiveShadow = true;
+
 let swarm = null;
 let spatial = null;
 let orbLOD = null;
@@ -270,7 +290,10 @@ const { gui, params } = createUI({
       leftWalkway.remove(Math.ceil(-diff / 2));
       rightWalkway.remove(Math.floor(-diff / 2));
     }
-  }
+  },
+  
+  // Street lamps
+  streetLamps,
 });
 
 // Quick sanity inserts (dummy points)
@@ -358,6 +381,9 @@ function animate() {
   // Update crowd simulation
   crowdManager.update(dt, t);
   
+  // Update street lamps (light pool + shadow LOD)
+  streetLamps.update(camera);
+  
   // update swarm (movement + separation)
   // Pass spatial hash only if mode is "hash", otherwise pass null for naive O(n²) mode
   const spatialToUse = params.neighborMode === "hash" ? spatial : null;
@@ -415,6 +441,7 @@ function animate() {
   // Update stats displays
   updateStatsDisplay();
   if (window.updateCrowdStats) window.updateCrowdStats();
+  if (window.updateLampStats) window.updateLampStats();
 }
 
 animate();

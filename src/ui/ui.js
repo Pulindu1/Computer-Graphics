@@ -29,6 +29,7 @@ export function createUI({
   rightWalkway,
   getPeopleCount,
   onSetPeopleCount,
+  streetLamps,
 } = {}) {
   const gui = new GUI({ title: "Swarm Controls" });
 
@@ -68,6 +69,13 @@ export function createUI({
     
     // Stress test modes
     stressTest: 40,
+    
+    // Street Lamps
+    lampsEnabled: true,
+    maxLitLamps: 12,
+    shadowRadius: 25.0,
+    shadowsEnabled: true,
+    debugLampAOI: false,
     
     // Environment
     fogIntensity: 0,
@@ -325,6 +333,73 @@ export function createUI({
         Agents: ${stats.totalAgents}<br>
         Queries: ${stats.totalQueries}<br>
         Avg Neighbors: ${stats.avgNeighborsPerQuery.toFixed(1)}
+      `;
+    }
+  };
+
+  // --- Folder: Street Lamps ---
+  const fLamps = gui.addFolder("Street Lamps");
+  
+  fLamps
+    .add(params, "lampsEnabled")
+    .name("Enabled")
+    .onChange((v) => {
+      if (streetLamps && streetLamps.poleMesh) {
+        streetLamps.poleMesh.visible = v;
+        streetLamps.orbMesh.visible = v;
+      }
+    });
+  
+  fLamps
+    .add(params, "maxLitLamps", 4, 32, 1)
+    .name("Max Active Lights")
+    .onChange((v) => {
+      if (streetLamps) streetLamps.maxLitLamps = v;
+    });
+  
+  fLamps
+    .add(params, "shadowRadius", 10, 60, 1)
+    .name("Shadow Radius")
+    .onChange((v) => {
+      if (streetLamps) streetLamps.shadowRadius = v;
+    });
+  
+  fLamps
+    .add(params, "shadowsEnabled")
+    .name("Shadows")
+    .onChange((v) => {
+      if (streetLamps) {
+        streetLamps.shadowsEnabled = v;
+      }
+    });
+  
+  fLamps
+    .add(params, "debugLampAOI")
+    .name("Debug AOI")
+    .onChange((v) => {
+      if (streetLamps) {
+        if (v) streetLamps.debugDrawAOI();
+        else if (streetLamps._debugGroup) {
+          streetLamps.scene.remove(streetLamps._debugGroup);
+          streetLamps._debugGroup = null;
+        }
+      }
+    });
+  
+  // Lamp stats display (add to bottom of HUD)
+  const lampStatsDisplay = document.createElement("div");
+  lampStatsDisplay.id = "lamp-stats";
+  lampStatsDisplay.style.cssText = "position:fixed; bottom:10px; right:10px; background:rgba(0,0,0,0.7); color:#ff0; font-family:monospace; padding:10px; font-size:12px; z-index:999;";
+  document.body.appendChild(lampStatsDisplay);
+
+  window.updateLampStats = () => {
+    if (streetLamps) {
+      const stats = streetLamps.getStats();
+      lampStatsDisplay.innerHTML = `
+        <b>Street Lamps</b><br>
+        Total: ${stats.lampCount}<br>
+        Active Lights: ${stats.litLampCount}<br>
+        Shadow Lights: ${stats.shadowLampCount}
       `;
     }
   };
