@@ -24,6 +24,11 @@ export function createUI({
   onSetAgentCount,
   getBrightness,
   onSetBrightness,
+  crowdManager,
+  leftWalkway,
+  rightWalkway,
+  getPeopleCount,
+  onSetPeopleCount,
 } = {}) {
   const gui = new GUI({ title: "Swarm Controls" });
 
@@ -41,6 +46,17 @@ export function createUI({
     // Orbs
     agentCount: typeof getAgentCount === "function" ? getAgentCount() : 300,
     orbBrightness: typeof getBrightness === "function" ? getBrightness() : 2.0,
+    
+    // People (Crowd)
+    peopleCount: typeof getPeopleCount === "function" ? getPeopleCount() : 40,
+    crowdSeparation: true,
+    crowdAlignment: false,
+    crowdCohesion: false,
+    crowdQueue: true,
+    separationWeight: 1.5,
+    alignmentWeight: 0.5,
+    cohesionWeight: 0.3,
+    queueWeight: 1.0,
     
     // Environment
     fogIntensity: 0,
@@ -87,6 +103,89 @@ export function createUI({
     .name("Brightness")
     .onChange((v) => {
       if (typeof onSetBrightness === "function") onSetBrightness(v);
+    });
+
+  // --- Folder: People (Crowd) ---
+  const fPeople = gui.addFolder("People");
+  
+  fPeople
+    .add(params, "peopleCount", 0, 200, 1)
+    .name("People count")
+    .onFinishChange((v) => {
+      if (typeof onSetPeopleCount === "function") onSetPeopleCount(Math.floor(v));
+    });
+  
+  // Behavior toggles
+  fPeople
+    .add(params, "crowdSeparation")
+    .name("Separation")
+    .onChange((v) => {
+      if (leftWalkway) leftWalkway.weights.sep = v ? params.separationWeight : 0;
+      if (rightWalkway) rightWalkway.weights.sep = v ? params.separationWeight : 0;
+    });
+  
+  fPeople
+    .add(params, "separationWeight", 0, 3, 0.1)
+    .name("  └ Weight")
+    .onChange((v) => {
+      if (params.crowdSeparation) {
+        if (leftWalkway) leftWalkway.weights.sep = v;
+        if (rightWalkway) rightWalkway.weights.sep = v;
+      }
+    });
+  
+  fPeople
+    .add(params, "crowdAlignment")
+    .name("Alignment")
+    .onChange((v) => {
+      if (leftWalkway) leftWalkway.weights.ali = v ? params.alignmentWeight : 0;
+      if (rightWalkway) rightWalkway.weights.ali = v ? params.alignmentWeight : 0;
+    });
+  
+  fPeople
+    .add(params, "alignmentWeight", 0, 3, 0.1)
+    .name("  └ Weight")
+    .onChange((v) => {
+      if (params.crowdAlignment) {
+        if (leftWalkway) leftWalkway.weights.ali = v;
+        if (rightWalkway) rightWalkway.weights.ali = v;
+      }
+    });
+  
+  fPeople
+    .add(params, "crowdCohesion")
+    .name("Cohesion")
+    .onChange((v) => {
+      if (leftWalkway) leftWalkway.weights.coh = v ? params.cohesionWeight : 0;
+      if (rightWalkway) rightWalkway.weights.coh = v ? params.cohesionWeight : 0;
+    });
+  
+  fPeople
+    .add(params, "cohesionWeight", 0, 3, 0.1)
+    .name("  └ Weight")
+    .onChange((v) => {
+      if (params.crowdCohesion) {
+        if (leftWalkway) leftWalkway.weights.coh = v;
+        if (rightWalkway) rightWalkway.weights.coh = v;
+      }
+    });
+  
+  fPeople
+    .add(params, "crowdQueue")
+    .name("Queueing")
+    .onChange((v) => {
+      if (leftWalkway) leftWalkway.weights.queue = v ? params.queueWeight : 0;
+      if (rightWalkway) rightWalkway.weights.queue = v ? params.queueWeight : 0;
+    });
+  
+  fPeople
+    .add(params, "queueWeight", 0, 3, 0.1)
+    .name("  └ Weight")
+    .onChange((v) => {
+      if (params.crowdQueue) {
+        if (leftWalkway) leftWalkway.weights.queue = v;
+        if (rightWalkway) rightWalkway.weights.queue = v;
+      }
     });
 
   // --- Folder: Environment ---
@@ -161,6 +260,7 @@ export function createUI({
   // Optional: keep folders open initially
   fDebug.open();
   fOrbs.open();
+  fPeople.open();
   fEnv.open();
 
   return { gui, params };

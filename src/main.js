@@ -10,10 +10,13 @@ import { createWater } from "./environment/water.js";
 import { DayNightCycle } from "./ui/dayNightCycle.js";
 import { makeRiverCorridor } from "./environment/riverCorridor.js";
 import { createRiverWalkways } from "./environment/riverWalkways.js";
+import { createWalkwayCurves } from "./environment/walkwayCurves.js";
 import { createOrbSwarm } from "./agents/orbSwarm.js";
 import { ORB_DEFAULTS } from "./agents/orbConfig.js";
 import { SpatialHash } from "./agents/spatialHash.js";
 import { createOrbLodRenderer } from "./agents/orbLodRenderer.js";
+import { CrowdManager } from "./crowd/CrowdManager.js";
+import { WalkwayZone } from "./crowd/CrowdZoneWalkway.js";
 import { createUI } from "./ui/ui.js";
 import { Stats } from "./stats.js";
 import { Perf } from "./perf.js";
@@ -101,7 +104,7 @@ const river = makeRiverCorridor({
 const walkways = createRiverWalkways({
   riverCorridor: river,
   offsetDistance: 5,   // Closer to river edge
-  width: 40,           // Much wider platform
+  width: 20,           // Platform width
   segments: 200,
   height: 5,        // Raised to where rail tops currently are
   railHeight: 1.2,     // Railing height
@@ -110,6 +113,49 @@ const walkways = createRiverWalkways({
 });
 scene.add(walkways.leftMesh);
 scene.add(walkways.rightMesh);
+
+// --- Crowd simulation ---
+const walkwayCurves = createWalkwayCurves({
+  riverCorridor: river,
+  offsetDistance: 5,
+  width: 20,
+  samples: 100,
+});
+
+const crowdManager = new CrowdManager();
+
+// Left walkway zone
+const leftWalkway = new WalkwayZone({
+  scene: scene,
+  curve: walkwayCurves.leftCurve,
+  corridorWidth: 18,  // Slightly less than platform width (20) for margin
+  laneOffsets: [-4, 0, 4], // Three lanes
+  yOffset: 0.15,
+  lookAheadT: 0.01,
+  neighborRadius: 3.0,
+  brakeRadius: 2.0,
+  platformHeight: 5,
+});
+
+// Right walkway zone
+const rightWalkway = new WalkwayZone({
+  scene: scene,
+  curve: walkwayCurves.rightCurve,
+  corridorWidth: 18,
+  laneOffsets: [-4, 0, 4],
+  yOffset: 0.15,
+  lookAheadT: 0.01,
+  neighborRadius: 3.0,
+  brakeRadius: 2.0,
+  platformHeight: 5,
+});
+
+crowdManager.addZone(leftWalkway);
+crowdManager.addZone(rightWalkway);
+
+// Spawn initial crowd
+leftWalkway.spawn(20);
+rightWalkway.spawn(20);
 
 let swarm = null;
 let spatial = null;
@@ -205,6 +251,25 @@ const { gui, params } = createUI({
   onSetBrightness: (v) => {
     orbBrightness = v;
     if (orbLOD) orbLOD.setBrightness(orbBrightness);
+  },
+  
+  // Crowd controls
+  crowdManager,
+  leftWalkway,
+  rightWalkway,
+  getPeopleCount: () => crowdManager.getAgentCount(),
+  onSetPeopleCount: (n) => {
+    const current = crowdManager.getAgentCount();
+    const diff = n - current;
+    if (diff > 0) {
+      // Spawn evenly on both walkways
+      leftWalkway.spawn(Math.ceil(diff / 2));
+      rightWalkway.spawn(Math.floor(diff / 2));
+    } else if (diff < 0) {
+      // Remove evenly from both walkways
+      leftWalkway.remove(Math.ceil(-diff / 2));
+      rightWalkway.remove(Math.floor(-diff / 2));
+    }
   }
 });
 
@@ -289,6 +354,9 @@ function animate() {
   // Controls damping requires update each frame
   controls.update();
   water.update(dt);
+  
+  // Update crowd simulation
+  crowdManager.update(dt, t);
   
   // update swarm (movement + separation)
   // Pass spatial hash only if mode is "hash", otherwise pass null for naive O(n²) mode
