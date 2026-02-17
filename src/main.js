@@ -9,6 +9,7 @@ import { QueryCellOverlay } from "./spacial/queryCellOverlay.js";
 import { createWater } from "./environment/water.js";
 import { DayNightCycle } from "./ui/dayNightCycle.js";
 import { makeRiverCorridor } from "./environment/riverCorridor.js";
+import { createRiverWalkways } from "./environment/riverWalkways.js";
 import { createOrbSwarm } from "./agents/orbSwarm.js";
 import { ORB_DEFAULTS } from "./agents/orbConfig.js";
 import { SpatialHash } from "./agents/spatialHash.js";
@@ -90,11 +91,25 @@ const river = makeRiverCorridor({
   width: 800,
   length: 2000,
   waterLevel: -6,
-  riverHalfWidth: 400,
+  riverHalfWidth: 56,  // Fixed: was 400, should be 56 to match terrain/water
   riverMeanderAmp: 55,
   riverMeanderWavelength: 140,
   seedishOffset: 13.37
 });
+
+// --- River walkways ---
+const walkways = createRiverWalkways({
+  riverCorridor: river,
+  offsetDistance: 5,   // Closer to river edge
+  width: 40,           // Much wider platform
+  segments: 200,
+  height: 5,        // Raised to where rail tops currently are
+  railHeight: 1.2,     // Railing height
+  color: 0x333333,     // Solid dark grey for visibility
+  railColor: 0x111111, // Even darker rail color
+});
+scene.add(walkways.leftMesh);
+scene.add(walkways.rightMesh);
 
 let swarm = null;
 let spatial = null;
