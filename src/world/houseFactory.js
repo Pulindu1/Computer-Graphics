@@ -238,8 +238,8 @@ export function createHouseLOD(seed, config) {
   // addLevel(object, distance)
   // distance = camera distance at which this level becomes active
   lod.addLevel(lod0, 0);    // Close: full detail
-  lod.addLevel(lod1, 150);  // Mid: simplified (visible from far)
-  lod.addLevel(lod2, 400);  // Far: silhouette (very far away)
+  lod.addLevel(lod1, 700);  // Mid: simplified (visible from far)
+  lod.addLevel(lod2, 2000);  // Far: silhouette (very far away)
 
   return lod;
 }

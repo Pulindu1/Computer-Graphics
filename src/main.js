@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { initThree } from "./core/initThree.js";
 import { installResizeHandler } from "./core/resize.js";
+import { KeyboardCameraController } from "./core/keyboardCamera.js";
 import { createTerrain } from "./environment/terrain.js";
 import { UniformGrid } from "./spacial/uniformGrid.js";
 import { DebugGridRenderer } from "./spacial/debugGridRenderer.js";
@@ -26,6 +27,9 @@ import { Perf } from "./perf.js";
 
 const { scene, camera, renderer, controls } = initThree();
 installResizeHandler(camera, renderer);
+
+// --- Keyboard Camera Controller ---
+const keyboardCamera = new KeyboardCameraController(camera, 500);  // Speed: 500 units/sec for fast traversal
 
 // --- Day/Night Cycle ---
 const dayNightCycle = new DayNightCycle(scene, renderer);
@@ -395,6 +399,7 @@ function animate() {
 
   // Controls damping requires update each frame
   controls.update();
+  keyboardCamera.update(dt);  // Update keyboard camera movement
   water.update(dt);
   
   // Update crowd simulation
