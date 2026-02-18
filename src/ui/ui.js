@@ -80,8 +80,8 @@ export function createUI({
     
     // Street District
     districtEnabled: true,
-    streetPedestriansCount: 25,
-    firefliesCount: 0,
+    streetPedestriansCount: 100,
+    firefliesCount: 300,
     
     // Environment
     fogIntensity: 0,
@@ -423,7 +423,7 @@ export function createUI({
     });
   
   fDistrict
-    .add(params, "streetPedestriansCount", 0, 200, 1)
+    .add(params, "streetPedestriansCount", 0, 400, 1)
     .name("Pedestrians")
     .onChange((v) => {
       if (streetDistrict) {
@@ -432,7 +432,7 @@ export function createUI({
     });
   
   fDistrict
-    .add(params, "firefliesCount", 0, 300, 1)
+    .add(params, "firefliesCount", 0, 800, 1)
     .name("Fireflies")
     .onChange((v) => {
       if (streetDistrict) {

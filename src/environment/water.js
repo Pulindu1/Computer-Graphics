@@ -209,8 +209,7 @@ export function createWater({
   roughness = 0.08,
   clearcoat = 1.0,
   clearcoatRoughness = 0.06,
-  transmission = 0.0, // keep 0 for stability; can try 0.1–0.2 later
-  thickness = 0.8
+  transmission = 0.4 // keep 0 for stability; can try 0.1–0.2 later
 } = {}) {
   // Merge defaults matching your terrainHeight.js
   const p = {

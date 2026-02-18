@@ -56,10 +56,17 @@ export class AttractionPyramid {
 
     this.root.add(this.mesh);
 
-    // Add a single global PointLight (no shadow casting for efficiency)
-    // This light illuminates the surrounding area without expensive shadow maps
+    // Add a single global PointLight with optimized shadows
     this.light = new THREE.PointLight(p.color, p.lightIntensity, p.lightRange);
-    this.light.castShadow = false;  // No shadows = huge performance gain
+    this.light.castShadow = true;  // Enable shadows for visual quality
+    
+    // Optimize shadow rendering: lower resolution + appropriate bounds
+    this.light.shadow.mapSize.width = 1024;   // Reduced from default 2048
+    this.light.shadow.mapSize.height = 1024;
+    this.light.shadow.camera.near = 0.1;
+    this.light.shadow.camera.far = p.lightRange;
+    this.light.shadow.bias = -0.001;  // Reduce shadow acne artifacts
+    
     this.light.position.copy(this.mesh.position);
     this.light.position.y += p.height * 0.3;  // Slightly above peak
     this.scene.add(this.light);

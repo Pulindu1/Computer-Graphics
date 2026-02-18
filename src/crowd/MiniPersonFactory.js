@@ -9,7 +9,7 @@ export function createMiniPersonMesh(baseColorHex = 0x3388ff) {
   console.log("[MiniPersonFactory] Creating mesh with color:", baseColorHex.toString(16));
   const group = new THREE.Group();
   
-  // Materials
+  // Materials - create fresh instances for this mesh only (no sharing)
   const bodyMat = new THREE.MeshStandardMaterial({
     color: baseColorHex,
     roughness: 0.7,
@@ -22,41 +22,61 @@ export function createMiniPersonMesh(baseColorHex = 0x3388ff) {
     metalness: 0.0,
   });
   
+  // Track all geometries and materials for this mesh
+  const geometries = [];
+  const materials = [bodyMat, skinMat];
+  
   // Scale factor for 12x size (3x bigger than previous 4x)
   const scale = 12.0;
   
   // Head
   const headGeo = new THREE.SphereGeometry(0.12 * scale, 8, 8);
+  geometries.push(headGeo);
   const head = new THREE.Mesh(headGeo, skinMat);
   head.position.y = 0.75 * scale;
+  head.castShadow = true;
+  head.receiveShadow = true;
   group.add(head);
   
   // Torso
   const torsoGeo = new THREE.CylinderGeometry(0.12 * scale, 0.15 * scale, 0.5 * scale, 8);
+  geometries.push(torsoGeo);
   const torso = new THREE.Mesh(torsoGeo, bodyMat);
   torso.position.y = 0.45 * scale;
+  torso.castShadow = true;
+  torso.receiveShadow = true;
   group.add(torso);
   
   // Left leg
   const legGeo = new THREE.BoxGeometry(0.08 * scale, 0.35 * scale, 0.08 * scale);
+  geometries.push(legGeo);
   const lLeg = new THREE.Mesh(legGeo, bodyMat);
   lLeg.position.set(-0.08 * scale, 0.175 * scale, 0);
+  lLeg.castShadow = true;
+  lLeg.receiveShadow = true;
   group.add(lLeg);
   
   // Right leg
   const rLeg = new THREE.Mesh(legGeo, bodyMat);
   rLeg.position.set(0.08 * scale, 0.175 * scale, 0);
+  rLeg.castShadow = true;
+  rLeg.receiveShadow = true;
   group.add(rLeg);
   
   // Left arm
   const armGeo = new THREE.BoxGeometry(0.06 * scale, 0.3 * scale, 0.06 * scale);
+  geometries.push(armGeo);
   const lArm = new THREE.Mesh(armGeo, bodyMat);
   lArm.position.set(-0.20 * scale, 0.50 * scale, 0);
+  lArm.castShadow = true;
+  lArm.receiveShadow = true;
   group.add(lArm);
   
   // Right arm
   const rArm = new THREE.Mesh(armGeo, bodyMat);
   rArm.position.set(0.20 * scale, 0.50 * scale, 0);
+  rArm.castShadow = true;
+  rArm.receiveShadow = true;
   group.add(rArm);
   
   // Store references for animation
@@ -69,7 +89,7 @@ export function createMiniPersonMesh(baseColorHex = 0x3388ff) {
     rArm,
   };
   
-  return { mesh: group, parts, bodyMat, skinMat };
+  return { mesh: group, parts, geometries, materials };
 }
 
 /**

@@ -189,9 +189,10 @@ const streetDistrict = new StreetDistrict({
 });
 streetDistrict.generate();
 
-// Enable shadows for lighting to work
+// Enable shadows for lighting to work - optimized for performance
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;  // Cheaper than PCFSoftShadowMap for point lights
+renderer.shadowMap.autoUpdate = true;
 
 // Walkway platforms should receive shadows
 walkways.leftMesh.receiveShadow = true;

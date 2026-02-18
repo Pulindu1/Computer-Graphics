@@ -278,18 +278,27 @@ export class StreetPedestrians {
           agent.mesh.parent.remove(agent.mesh);
         }
         
-        // Dispose all geometries ONLY (do NOT dispose materials - they should be handled by THREE GC)
-        if (agent.geometries) {
+        // Dispose all geometries (each mesh has unique geometries)
+        if (agent.geometries && agent.geometries.length > 0) {
           for (const geo of agent.geometries) {
-            geo.dispose();
+            if (geo && geo.dispose) {
+              geo.dispose();
+            }
           }
         }
         
-        // Clear references
+        // Dispose all materials (each mesh now has unique materials)
+        if (agent.materials && agent.materials.length > 0) {
+          for (const mat of agent.materials) {
+            if (mat && mat.dispose) {
+              mat.dispose();
+            }
+          }
+        }
+        
+        // Clear all references
         agent.mesh = null;
         agent.parts = null;
-        agent.bodyMat = null;
-        agent.skinMat = null;
         agent.geometries = null;
         agent.materials = null;
       }
@@ -299,31 +308,41 @@ export class StreetPedestrians {
 
     console.log("[StreetPedestrians] Respawning", this.params.population, "agents");
 
-    // Spawn new agents
+    // Spawn new agents with better spread
+    const usedPositions = new Set();
+    const minDistance = 3; // Minimum distance between spawn points
+    
     for (let i = 0; i < this.params.population; i++) {
-      const x = this.street.centerX + (Math.random() - 0.5) * this.street.width * 0.85;
-      const z = this.street.centerZ + (Math.random() - 0.5) * this.street.length * 0.95;
-      const agent = new Agent(x, z, Math.floor(i / 3), this.street.height);  // Groups of ~3
+      let x, z, key;
+      let attempts = 0;
+      const maxAttempts = 50;
+      
+      // Keep trying to find a unique spawn position
+      do {
+        x = this.street.centerX + (Math.random() - 0.5) * this.street.width * 0.85;
+        z = this.street.centerZ + (Math.random() - 0.5) * this.street.length * 0.95;
+        key = Math.round(x / minDistance) + ',' + Math.round(z / minDistance);
+        attempts++;
+      } while (usedPositions.has(key) && attempts < maxAttempts);
+      
+      if (attempts >= maxAttempts) continue; // Skip this agent if we can't find a spot
+      
+      usedPositions.add(key);
+      const agent = new Agent(x, z, Math.floor(i / 3), this.street.height);
 
       // Create humanoid mesh (fresh creation, no cloning)
       const result = createMiniPersonMesh(0xff69b4);  // Soft pink
       agent.mesh = result.mesh;
       agent.parts = result.parts;
-      agent.bodyMat = result.bodyMat;
-      agent.skinMat = result.skinMat;
+      
+      // Store both geometries and materials for proper disposal
+      agent.geometries = result.geometries || [];
+      agent.materials = result.materials || [];
       
       // Ensure clean mesh setup
       agent.mesh.position.set(agent.pos.x, agent.pos.y, agent.pos.z);
       agent.mesh.castShadow = true;
       agent.mesh.receiveShadow = true;
-      
-      // Store all geometries and materials for proper disposal
-      agent.geometries = [];
-      agent.materials = [];
-      agent.mesh.traverse(child => {
-        if (child.geometry) agent.geometries.push(child.geometry);
-        if (child.material) agent.materials.push(child.material);
-      });
       
       // Add to root - make sure not already added
       this.root.add(agent.mesh);
