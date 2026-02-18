@@ -405,8 +405,8 @@ function animate() {
   // Update crowd simulation
   crowdManager.update(dt, t);
   
-  // Update street district (LOD updates)
-  streetDistrict.update(camera);
+  // Update street district (LOD updates + light festival animation)
+  streetDistrict.update(camera, t);
   
   // Update street lamps (light pool + shadow LOD)
   streetLamps.update(camera);

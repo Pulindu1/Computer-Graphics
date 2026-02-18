@@ -7,6 +7,10 @@ import * as THREE from "three";
 import { applyStreetFlattenToTerrain, computePlots } from "./streetMask.js";
 import { createHouseLOD, HOUSE_CONFIG_DEFAULT } from "./houseFactory.js";
 import { PALETTE } from "./palette.js";
+import { LightFestival } from "./lightFestival.js";
+import { AttractionPyramid } from "./attractionPyramid.js";
+import { StreetPedestrians } from "./streetPedestrians.js";
+import { Fireflies } from "./fireflies.js";
 
 export class StreetDistrict {
   constructor({ scene, terrain, params = {} }) {
@@ -46,6 +50,9 @@ export class StreetDistrict {
     this.sidewalkMeshes = [];
     this.houseLODs = [];
     this.housesByPlot = new Map();
+    this.lightFestival = null;
+    this.attractionPyramid = null;
+    this.streetPedestrians = null;
 
     this.isGenerated = false;
   }
@@ -57,10 +64,14 @@ export class StreetDistrict {
 
     const p = this.params;
 
+    console.log("[StreetDistrict] Starting generate()...");
+
     // Stage 1: ensure street position is at plateau height
     const plateauHeight = this.terrain.heightAt(p.centerX, p.centerZ);
     p.streetHeight = plateauHeight;
     p.streetMeshHeight = plateauHeight + 2;  // Raise platform significantly above terrain
+
+    console.log("[StreetDistrict] Plateau height:", plateauHeight, "Street mesh height:", p.streetMeshHeight);
 
     // Stage 2: flatten terrain under street footprint
     this._flattenTerrainForStreet();
@@ -73,6 +84,18 @@ export class StreetDistrict {
 
     // Stage 4: procedurally generate houses
     this._generateHouses();
+
+    // Stage 5: create light festival (animated instanced lights)
+    this._createLightFestival();
+
+    // Stage 6: create attraction pyramid (focal point for crowds)
+    this._createAttractionPyramid();
+
+    // Stage 7: create street pedestrians (group-based crowd)
+    this._createStreetPedestrians();
+
+    // Stage 8: create fireflies (floating glowing orbs)
+    this._createFireflies();
 
     console.log(
       `[StreetDistrict] Generated street @ (${p.centerX}, ${p.streetHeight}, ${p.centerZ}) ` +
@@ -219,13 +242,174 @@ export class StreetDistrict {
     console.log(`[StreetDistrict] ${plots.length} houses generated`);
   }
 
-  // Per-frame update: LOD and shadow management (stages 5-6, implemented later)
-  update(camera) {
+  // Stage 5: Create light festival (instanced animated lights)
+  _createLightFestival() {
+    const p = this.params;
+
+    // Compute street heading (along Z axis by default)
+    const forward = new THREE.Vector3(0, 0, 1);  // Along +Z (street length direction)
+
+    this.lightFestival = new LightFestival({
+      scene: this.root,
+      street: {
+        center: new THREE.Vector3(p.centerX, p.streetMeshHeight, p.centerZ),
+        forward: forward,
+        width: p.streetWidth * 2,
+        length: p.streetLength * 2,
+        yStreet: p.streetMeshHeight,
+      },
+      params: {
+        nRows: 3,
+        nPerRow: 80,
+        radius: 0.18,
+        yOffset: 6.0,
+        amplitude: 0.8,
+        speed: 1.2,
+        emissiveIntensity: 2.5,
+        enabled: true,
+      },
+    });
+
+    console.log("[StreetDistrict] Light festival created");
+  }
+
+  _createAttractionPyramid() {
+    const p = this.params;
+
+    this.attractionPyramid = new AttractionPyramid({
+      scene: this.root,
+      centerX: p.centerX,
+      centerZ: p.centerZ,
+      streetHeight: p.streetMeshHeight,
+      params: {
+        size: 15,
+        height: 30,
+        color: 0xff1493,
+        emissiveIntensity: 6.0,
+        lightIntensity: 1.5,  // Subtle light (no glow from distance)
+        lightRange: 1000,  // Only close range gets light effect
+        sideOffset: -20,  // Slightly towards river side, mostly on road
+        enabled: true,
+      },
+    });
+
+    console.log("[StreetDistrict] Attraction pyramid created");
+  }
+
+  _createStreetPedestrians() {
+    const p = this.params;
+
+    console.log("[StreetDistrict] Creating street pedestrians...");
+
+    // Build house rectangles for avoidance
+    const houseRects = this.houseLODs.map(houseLOD => {
+      const pos = houseLOD.position;
+      return {
+        minX: pos.x - 15,
+        maxX: pos.x + 15,
+        minZ: pos.z - 15,
+        maxZ: pos.z + 15,
+      };
+    });
+
+    this.streetPedestrians = new StreetPedestrians({
+      scene: this.root,
+      street: {
+        centerX: p.centerX,
+        centerZ: p.centerZ,
+        width: p.streetWidth * 2,
+        length: p.streetLength * 2,
+        height: p.streetMeshHeight,
+      },
+      pyramid: this.attractionPyramid,
+      params: {
+        population: 25,
+        groupCohesion: 0.4,
+        avoidPedestrians: 0.6,
+        avoidHouses: 0.5,
+        pyramidAttraction: 0.2,
+        pyramidAvoidance: 0.4,
+        enabled: true,
+      },
+    });
+
+    // Store house rects for update
+    this._houseRects = houseRects;
+    console.log("[StreetDistrict] Street pedestrians created");
+  }
+
+  // Stage 8: Create fireflies (floating glowing orbs)
+  _createFireflies() {
+    const p = this.params;
+    this.fireflies = new Fireflies({
+      scene: this.root,
+      street: {
+        centerX: p.centerX,
+        centerZ: p.centerZ,
+        width: p.streetWidth * 2,
+        length: p.streetLength * 2,
+        height: p.streetMeshHeight,
+      },
+      params: {
+        population: 0,  // Start with 0, user can enable via UI
+        enabled: true,
+      },
+    });
+  }
+
+  // Expose fireflies for UI control
+  setFirefliesPopulation(count) {
+    console.log("[StreetDistrict] setFirefliesPopulation called with:", count);
+    if (this.fireflies) {
+      this.fireflies.setPopulation(count);
+      console.log("[StreetDistrict] Fireflies population set to:", count);
+    } else {
+      console.warn("[StreetDistrict] Fireflies not initialized");
+    }
+  }
+
+  // Expose pedestrians for UI control
+  setStreetPedestriansPopulation(count) {
+    console.log("[StreetDistrict] setStreetPedestriansPopulation called with:", count);
+    if (this.streetPedestrians) {
+      this.streetPedestrians.setPopulation(count);
+      console.log("[StreetDistrict] Pedestrians population set to:", count);
+    } else {
+      console.warn("[StreetDistrict] Street pedestrians not initialized");
+    }
+    this._houseRects = houseRects;
+
+    console.log("[StreetDistrict] Street pedestrians created");
+  }
+
+  // Per-frame update: LOD and shadow management
+  update(camera, timeSec = 0) {
     if (!this.isGenerated || !this.params.enabled) return;
 
     // Update LOD distances for each house
     for (const houseLOD of this.houseLODs) {
       houseLOD.update(camera);
+    }
+
+    // Update light festival animation
+    if (this.lightFestival) {
+      this.lightFestival.update(timeSec);
+    }
+
+    // Update attraction pyramid animation
+    if (this.attractionPyramid) {
+      this.attractionPyramid.update(timeSec);
+    }
+
+    // Update street pedestrians (crowd simulation)
+    if (this.streetPedestrians) {
+      const pyramidPos = this.attractionPyramid?.mesh?.position || new THREE.Vector3();
+      this.streetPedestrians.update(0.016, pyramidPos, this._houseRects);  // Assume 60fps = 0.016s
+    }
+
+    // Update fireflies
+    if (this.fireflies) {
+      this.fireflies.update(0.016);  // Assume 60fps = 0.016s
     }
   }
 

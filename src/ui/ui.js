@@ -80,6 +80,8 @@ export function createUI({
     
     // Street District
     districtEnabled: true,
+    streetPedestriansCount: 25,
+    firefliesCount: 0,
     
     // Environment
     fogIntensity: 0,
@@ -417,6 +419,24 @@ export function createUI({
     .onChange((v) => {
       if (streetDistrict) {
         streetDistrict.setEnabled(v);
+      }
+    });
+  
+  fDistrict
+    .add(params, "streetPedestriansCount", 0, 200, 1)
+    .name("Pedestrians")
+    .onChange((v) => {
+      if (streetDistrict) {
+        streetDistrict.setStreetPedestriansPopulation(Math.floor(v));
+      }
+    });
+  
+  fDistrict
+    .add(params, "firefliesCount", 0, 300, 1)
+    .name("Fireflies")
+    .onChange((v) => {
+      if (streetDistrict) {
+        streetDistrict.setFirefliesPopulation(Math.floor(v));
       }
     });
 

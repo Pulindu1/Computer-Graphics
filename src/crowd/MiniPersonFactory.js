@@ -6,6 +6,7 @@ import * as THREE from "three";
  * Based on steering lab humanoid structure
  */
 export function createMiniPersonMesh(baseColorHex = 0x3388ff) {
+  console.log("[MiniPersonFactory] Creating mesh with color:", baseColorHex.toString(16));
   const group = new THREE.Group();
   
   // Materials

@@ -26,25 +26,16 @@ export class KeyboardCameraController {
     this.quat = new THREE.Quaternion();
     
     // Mouse movement
-    this.isPointerLocked = false;
     this.mouseSensitivity = 0.003;
     
     // Bind keyboard events
     this.onKeyDown = this.onKeyDown.bind(this);
     this.onKeyUp = this.onKeyUp.bind(this);
     this.onMouseMove = this.onMouseMove.bind(this);
-    this.onPointerLockChange = this.onPointerLockChange.bind(this);
     
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
     document.addEventListener('mousemove', this.onMouseMove);
-    document.addEventListener('pointerlockchange', this.onPointerLockChange);
-    
-    // Click to lock pointer
-    document.addEventListener('click', () => {
-      document.body.requestPointerLock = document.body.requestPointerLock || document.body.mozRequestPointerLock;
-      document.body.requestPointerLock();
-    });
   }
 
   onKeyDown(e) {
@@ -79,9 +70,9 @@ export class KeyboardCameraController {
   }
 
   onMouseMove(e) {
-    if (!this.isPointerLocked) return;
+    // Update euler angles based on mouse movement (only when mouse button is pressed)
+    if (e.buttons !== 1) return;  // Only rotate when left mouse button is held
 
-    // Update euler angles based on mouse movement
     this.euler.setFromQuaternion(this.camera.quaternion);
     this.euler.y -= e.movementX * this.mouseSensitivity;
     this.euler.x -= e.movementY * this.mouseSensitivity;
@@ -90,10 +81,6 @@ export class KeyboardCameraController {
     this.euler.x = Math.max(-Math.PI * 0.5, Math.min(Math.PI * 0.5, this.euler.x));
 
     this.camera.quaternion.setFromEuler(this.euler);
-  }
-
-  onPointerLockChange() {
-    this.isPointerLocked = document.pointerLockElement === document.body;
   }
 
   update(dt = 1.0 / 60.0) {
@@ -131,7 +118,6 @@ export class KeyboardCameraController {
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
     document.removeEventListener('mousemove', this.onMouseMove);
-    document.removeEventListener('pointerlockchange', this.onPointerLockChange);
   }
 }
 
