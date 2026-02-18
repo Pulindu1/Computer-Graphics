@@ -25,6 +25,7 @@ import { CrowdManager } from "./crowd/CrowdManager.js";
 import { WalkwayZone } from "./crowd/CrowdZoneWalkway.js";
 import { StreetLampSystem } from "./environment/StreetLampSystem.js";
 import { StreetDistrict } from "./world/streetDistrict.js";
+import { BezierBlanket } from "./parametric/bezierBlanket.js";
 import { createUI } from "./ui/ui.js";
 import { Stats } from "./stats.js";
 import { Perf } from "./perf.js";
@@ -297,6 +298,7 @@ const streetDistrict = new StreetDistrict({
     streetLength: 300,  // Half the hill length
     shoulderWidth: 40,
     enabled: true,
+    skipLightCubes: true,  // Only light cubes on Street 2
   },
 });
 streetDistrict.generate();
@@ -318,6 +320,36 @@ const streetDistrict2 = new StreetDistrict({
   },
 });
 streetDistrict2.generate();
+
+// --- Bézier Blanket Canopy (above Street 2) ---
+// Street 2 reference frame:
+// center: (-350, streetHeight, 200)
+// tangent: (0, 0, 1) - along street Z direction
+// normal: (-1, 0, 0) - perpendicular, pointing toward river
+const street2Center = new THREE.Vector3(-350, streetDistrict2.params.streetMeshHeight, 200);
+const street2Tangent = new THREE.Vector3(0, 0, 1);  // Along street
+const street2Normal = new THREE.Vector3(-1, 0, 0);  // Across street (toward river side)
+
+const bezierBlanket = new BezierBlanket({
+  scene: scene,
+  center: street2Center,
+  tangent: street2Tangent,
+  normal: street2Normal,
+  width: 100,      // Across street
+  length: 600,     // Along street
+  height: 60,      // Height above street surface (dramatic height)
+  segU: 40,        // Resolution across
+  segV: 120,       // Resolution along
+});
+
+// Configure for SUPER dramatic wave show
+bezierBlanket.setParams({
+  waveAmp: 12.0,     // MASSIVE waves
+  waveSpeed: 2.5,    // Very fast movement
+  waveLen: 6.0,      // Even shorter wavelength = dense ripples
+  drapeAmp: 8.0,     // Maximum sag at rest
+  emissiveIntensity: 3.5,  // Very bright glow
+});
 
 // Enable shadows for lighting to work - optimized for performance
 renderer.shadowMap.enabled = true;
@@ -452,6 +484,9 @@ const { gui, params } = createUI({
   // Street districts
   streetDistrict,
   streetDistrict2,
+  
+  // Parametric elements
+  bezierBlanket,
 });
 
 // Quick sanity inserts (dummy points)
@@ -543,6 +578,9 @@ function animate() {
   // Update street districts (LOD updates + light festival animation)
   streetDistrict.update(camera, t);
   streetDistrict2.update(camera, t);
+  
+  // Update Bézier blanket canopy animation
+  bezierBlanket.update(dt);
   
   // Update street lamps (light pool + shadow LOD)
   streetLamps.update(camera);

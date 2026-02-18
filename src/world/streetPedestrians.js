@@ -26,7 +26,7 @@ class Agent {
     this.acc.add(force);
   }
 
-  update(dt, agents, spatialHash, bounds, pyramidPos, preferences) {
+  update(dt, agents, spatialHash, bounds, pyramidPos, preferences, lightCubeObstacles = []) {
     // Determine animation mode based on velocity (2 states: idle/walk)
     const speed = this.vel.length();
     this.mode = speed < 0.15 ? 0 : 1;
@@ -50,6 +50,11 @@ class Agent {
 
     // Avoid houses (simple rectangular bounds)
     this._applyHouseAvoidance(bounds, preferences);
+
+    // Avoid light cubes
+    if (lightCubeObstacles.length > 0) {
+      this._applyLightCubeAvoidance(lightCubeObstacles, preferences);
+    }
 
     // Avoid pyramid
     if (preferences.pyramidAvoidance > 0) {
@@ -177,6 +182,24 @@ class Agent {
       const away = new THREE.Vector3().subVectors(this.pos, pyramidPos).normalize();
       away.multiplyScalar((25 - dist) / 25 * preferences.pyramidAvoidance * 2.0);  // Much stronger force
       this.applyForce(away);
+    }
+  }
+
+  _applyLightCubeAvoidance(obstacles, preferences) {
+    // obstacles is an array of { position, radius }
+    if (!obstacles || obstacles.length === 0) return;
+
+    for (const obstacle of obstacles) {
+      const toObstacle = new THREE.Vector3().subVectors(obstacle.position, this.pos);
+      const dist = toObstacle.length();
+      const avoidDist = obstacle.radius + 3;  // Add buffer
+
+      if (dist < avoidDist) {
+        // Strong avoidance force pushing away from light cube
+        const away = new THREE.Vector3().subVectors(this.pos, obstacle.position).normalize();
+        away.multiplyScalar((avoidDist - dist) / avoidDist * 1.5);  // Medium strength force
+        this.applyForce(away);
+      }
     }
   }
 
@@ -360,7 +383,7 @@ export class StreetPedestrians {
     console.log("[StreetPedestrians] Successfully spawned", this.agents.length, "agents");
   }
 
-  update(dt, pyramidPos, houseRects) {
+  update(dt, pyramidPos, houseRects, lightCubeObstacles = []) {
     if (!this.params.enabled || this.agents.length === 0) return;
 
     // Rebuild spatial hash
@@ -381,7 +404,7 @@ export class StreetPedestrians {
 
     // Update each agent
     for (const agent of this.agents) {
-      agent.update(dt, this.agents, this.spatialHash, bounds, pyramidPos, this.params);
+      agent.update(dt, this.agents, this.spatialHash, bounds, pyramidPos, this.params, lightCubeObstacles);
 
       // Animate humanoid walk cycle (only when walking, using accumulated time)
       if (agent.mesh && agent.parts && agent.mode === 1) {

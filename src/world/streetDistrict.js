@@ -11,6 +11,7 @@ import { LightFestival } from "./lightFestival.js";
 import { AttractionPyramid } from "./attractionPyramid.js";
 import { StreetPedestrians } from "./streetPedestrians.js";
 import { Fireflies } from "./fireflies.js";
+import { LightCubes } from "./lightCubes.js";
 
 export class StreetDistrict {
   constructor({ scene, terrain, params = {} }) {
@@ -43,6 +44,7 @@ export class StreetDistrict {
       mirrorHouses: false,  // Flip houses to opposite side
       flipHouseSide: false, // Place houses on opposite side of the road
       skipPyramid: false,   // Skip pyramid creation for this district
+      skipLightCubes: false, // Skip light cubes for this district
 
       ...params,
     };
@@ -58,6 +60,7 @@ export class StreetDistrict {
     this.lightFestival = null;
     this.attractionPyramid = null;
     this.streetPedestrians = null;
+    this.lightCubes = null;
 
     this.isGenerated = false;
   }
@@ -103,6 +106,11 @@ export class StreetDistrict {
 
     // Stage 8: create fireflies (floating glowing orbs)
     this._createFireflies();
+
+    // Stage 9: create light cubes (if enabled)
+    if (!p.skipLightCubes) {
+      this._createLightCubes();
+    }
 
     console.log(
       `[StreetDistrict] Generated street @ (${p.centerX}, ${p.streetHeight}, ${p.centerZ}) ` +
@@ -379,6 +387,24 @@ export class StreetDistrict {
     });
   }
 
+  // Stage 9: Create light cubes (atmospheric lighting + collision obstacles)
+  _createLightCubes() {
+    const p = this.params;
+    this.lightCubes = new LightCubes({
+      scene: this.root,
+      centerX: p.centerX,
+      centerZ: p.centerZ,
+      streetWidth: p.streetWidth * 2,
+      streetLength: p.streetLength * 2,
+      streetHeight: p.streetMeshHeight,
+      spacing: 40,
+      color: 0x00ff88,
+      emissiveIntensity: 2.5,
+      size: 3,
+      enabled: true,
+    });
+  }
+
   // Expose fireflies for UI control
   setFirefliesPopulation(count) {
     console.log("[StreetDistrict] setFirefliesPopulation called with:", count);
@@ -426,12 +452,18 @@ export class StreetDistrict {
     // Update street pedestrians (crowd simulation)
     if (this.streetPedestrians) {
       const pyramidPos = this.attractionPyramid?.mesh?.position || new THREE.Vector3();
-      this.streetPedestrians.update(0.016, pyramidPos, this._houseRects);  // Assume 60fps = 0.016s
+      const lightCubeObstacles = this.lightCubes?.getObstacles?.() || [];
+      this.streetPedestrians.update(0.016, pyramidPos, this._houseRects, lightCubeObstacles);  // Assume 60fps = 0.016s
     }
 
     // Update fireflies
     if (this.fireflies) {
       this.fireflies.update(0.016);  // Assume 60fps = 0.016s
+    }
+
+    // Update light cubes
+    if (this.lightCubes) {
+      this.lightCubes.update(timeSec);
     }
   }
 

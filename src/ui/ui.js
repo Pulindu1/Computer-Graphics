@@ -32,6 +32,7 @@ export function createUI({
   streetLamps,
   streetDistrict,
   streetDistrict2,
+  bezierBlanket,
 } = {}) {
   const gui = new GUI({ title: "Swarm Controls" });
 
@@ -83,6 +84,8 @@ export function createUI({
     districtEnabled: true,
     streetPedestriansCount: 25,
     firefliesCount: 100,
+    lightCubesEnabled: true,
+    lightCubesIntensity: 2.5,
     
     // Street District 2 (separate controls)
     district2Enabled: true,
@@ -90,6 +93,16 @@ export function createUI({
     firefliesCount2: 100,
     district2PedestrianAvoidance: 0.6,
     district2PedestrianGroupCohesion: 0.4,
+    
+    // Bézier Blanket Canopy
+    canopyEnabled: true,
+    canopyWaveAmp: 12.0,
+    canopyWaveSpeed: 2.5,
+    canopyWaveLen: 6.0,
+    canopyDrapeAmp: 8.0,
+    canopyEmissiveIntensity: 3.5,
+    canopyOpacity: 0.85,
+    canopyShowLattice: false,
     
     // Environment
     fogIntensity: 0,
@@ -456,6 +469,36 @@ export function createUI({
       }
     });
 
+  fDistrict
+    .add(params, "lightCubesEnabled")
+    .name("Light Cubes")
+    .onChange((v) => {
+      if (streetDistrict?.lightCubes) {
+        streetDistrict.lightCubes.setEnabled(v);
+      }
+      if (streetDistrict2?.lightCubes) {
+        streetDistrict2.lightCubes.setEnabled(v);
+      }
+    });
+
+  fDistrict
+    .add(params, "lightCubesIntensity", 0.5, 5, 0.1)
+    .name("Light Intensity")
+    .onChange((v) => {
+      if (streetDistrict?.lightCubes) {
+        for (const cube of streetDistrict.lightCubes.cubes) {
+          cube.mesh.material.emissiveIntensity = v;
+          cube.haloBrightMesh.material.emissiveIntensity = v * 0.6;
+        }
+      }
+      if (streetDistrict2?.lightCubes) {
+        for (const cube of streetDistrict2.lightCubes.cubes) {
+          cube.mesh.material.emissiveIntensity = v;
+          cube.haloBrightMesh.material.emissiveIntensity = v * 0.6;
+        }
+      }
+    });
+
   // --- Folder: Street District (Hill 2) - Independent Behavior Controls ---
   const fDistrict2 = gui.addFolder("Street District 2");
   
@@ -484,6 +527,68 @@ export function createUI({
     .onChange((v) => {
       if (streetDistrict2 && streetDistrict2.streetPedestrians) {
         streetDistrict2.streetPedestrians.params.groupCohesion = v;
+      }
+    });
+
+  // --- Folder: Bézier Blanket Canopy (Parametric Surface) ---
+  const fCanopy = gui.addFolder("Street 2 Canopy");
+  
+  fCanopy
+    .add(params, "canopyEnabled")
+    .name("Enabled")
+    .onChange((v) => {
+      if (bezierBlanket) bezierBlanket.setEnabled(v);
+    });
+  
+  fCanopy
+    .add(params, "canopyWaveAmp", 1.0, 12.0, 0.2)
+    .name("Wave Amplitude")
+    .onChange((v) => {
+      if (bezierBlanket) bezierBlanket.setParams({ waveAmp: v });
+    });
+  
+  fCanopy
+    .add(params, "canopyWaveSpeed", 0.2, 4.0, 0.1)
+    .name("Wave Speed")
+    .onChange((v) => {
+      if (bezierBlanket) bezierBlanket.setParams({ waveSpeed: v });
+    });
+  
+  fCanopy
+    .add(params, "canopyWaveLen", 2.0, 32.0, 0.5)
+    .name("Wave Length")
+    .onChange((v) => {
+      if (bezierBlanket) bezierBlanket.setParams({ waveLen: v });
+    });
+  
+  fCanopy
+    .add(params, "canopyDrapeAmp", 0.0, 12.0, 0.2)
+    .name("Drape Amount")
+    .onChange((v) => {
+      if (bezierBlanket) bezierBlanket.setParams({ drapeAmp: v });
+    });
+  
+  fCanopy
+    .add(params, "canopyEmissiveIntensity", 0.0, 8.0, 0.2)
+    .name("Emissive Intensity")
+    .onChange((v) => {
+      if (bezierBlanket) bezierBlanket.setParams({ emissiveIntensity: v });
+    });
+  
+  fCanopy
+    .add(params, "canopyOpacity", 0.3, 1.0, 0.05)
+    .name("Opacity")
+    .onChange((v) => {
+      if (bezierBlanket) bezierBlanket.setParams({ opacity: v });
+    });
+  
+  fCanopy
+    .add(params, "canopyShowLattice")
+    .name("Show Control Lattice")
+    .onChange((v) => {
+      if (bezierBlanket) {
+        if (v) bezierBlanket.drawControlLattice();
+        else bezierBlanket.hideControlLattice();
       }
     });
 
