@@ -38,6 +38,11 @@ export class StreetDistrict {
 
       // Rendering
       enabled: true,
+      
+      // District variants
+      mirrorHouses: false,  // Flip houses to opposite side
+      flipHouseSide: false, // Place houses on opposite side of the road
+      skipPyramid: false,   // Skip pyramid creation for this district
 
       ...params,
     };
@@ -88,8 +93,10 @@ export class StreetDistrict {
     // Stage 5: create light festival (animated instanced lights)
     this._createLightFestival();
 
-    // Stage 6: create attraction pyramid (focal point for crowds)
-    this._createAttractionPyramid();
+    // Stage 6: create attraction pyramid (optional - skip for street 2)
+    if (!p.skipPyramid) {
+      this._createAttractionPyramid();
+    }
 
     // Stage 7: create street pedestrians (group-based crowd)
     this._createStreetPedestrians();
@@ -229,10 +236,25 @@ export class StreetDistrict {
       // Set house Y position on the platform surface
       plot.pos.y = p.streetMeshHeight;  // On the platform surface
 
+      // Flip house side by negating offset from center (for street 2)
+      if (p.flipHouseSide) {
+        const offsetFromCenter = plot.pos.x - p.centerX;
+        plot.pos.x = p.centerX - offsetFromCenter;  // Reverse the offset
+      }
+
       // Create LOD house
       const houseLOD = createHouseLOD(plot.seed, p.house);
       houseLOD.position.copy(plot.pos);
-      houseLOD.rotation.y = plot.rotY + Math.PI * 0.5;  // Rotate 90 degrees + original rotation
+      
+      let rotY = plot.rotY + Math.PI * 0.5;  // Rotate 90 degrees + original rotation
+      
+      // Mirror houses on street 2 (flip across street axis)
+      if (p.mirrorHouses) {
+        houseLOD.scale.x = -1;  // Flip X axis to mirror (reverses left/right)
+        rotY = plot.rotY + Math.PI * 0.5 + Math.PI;  // Also rotate 180 degrees
+      }
+      
+      houseLOD.rotation.y = rotY;
 
       this.root.add(houseLOD);
       this.houseLODs.push(houseLOD);
@@ -425,5 +447,20 @@ export class StreetDistrict {
   setEnabled(enabled) {
     this.params.enabled = enabled;
     this.root.visible = enabled;
+  }
+
+  // Set street pedestrians population (respawn with new count)
+  setStreetPedestriansPopulation(count) {
+    if (this.streetPedestrians) {
+      this.streetPedestrians.params.population = count;
+      this.streetPedestrians._respawnAgents();
+    }
+  }
+
+  // Set fireflies population (respawn with new count)
+  setFirefliesPopulation(count) {
+    if (this.fireflies) {
+      this.fireflies.setPopulation(count);
+    }
   }
 }

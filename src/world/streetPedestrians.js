@@ -71,11 +71,9 @@ class Agent {
     // Update position
     this.pos.addScaledVector(this.vel, dt);
 
-    // Ensure Y position doesn't go below street height (prevent going under road)
-    if (this.pos.y < bounds.baseHeight) {
-      this.pos.y = bounds.baseHeight;
-      this.vel.y = 0;  // Stop downward velocity
-    }
+    // Keep Y at street height (pedestrians always on ground)
+    this.pos.y = bounds.baseHeight;
+    this.vel.y = 0;  // No vertical movement allowed
 
     // Boundary wrap
     if (this.pos.x < bounds.minX) this.pos.x = bounds.maxX;
@@ -183,13 +181,18 @@ class Agent {
   }
 
   _applyAttractionForce(pyramidPos, preferences) {
-    const toAttraction = new THREE.Vector3().subVectors(pyramidPos, this.pos);
+    // Only horizontal (XZ) attraction - ignore Y to prevent climbing
+    const toAttraction = new THREE.Vector3(
+      pyramidPos.x - this.pos.x,
+      0,  // No vertical component
+      pyramidPos.z - this.pos.z
+    );
     const dist = toAttraction.length();
 
     // Only attract from distance, not too close to avoid climbing
     if (dist > 5 && dist < 50) {  // Wider attraction range
       toAttraction.normalize();
-      toAttraction.multiplyScalar(preferences.pyramidAttraction * 0.15);
+      toAttraction.multiplyScalar(preferences.pyramidAttraction * 0.08);  // Reduced strength
       this.applyForce(toAttraction);
     }
   }

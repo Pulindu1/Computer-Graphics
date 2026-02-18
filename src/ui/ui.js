@@ -31,6 +31,7 @@ export function createUI({
   onSetPeopleCount,
   streetLamps,
   streetDistrict,
+  streetDistrict2,
 } = {}) {
   const gui = new GUI({ title: "Swarm Controls" });
 
@@ -78,10 +79,17 @@ export function createUI({
     shadowsEnabled: true,
     debugLampAOI: false,
     
-    // Street District
+    // Street Districts
     districtEnabled: true,
-    streetPedestriansCount: 100,
-    firefliesCount: 300,
+    streetPedestriansCount: 25,
+    firefliesCount: 100,
+    
+    // Street District 2 (separate controls)
+    district2Enabled: true,
+    streetPedestriansCount2: 25,
+    firefliesCount2: 100,
+    district2PedestrianAvoidance: 0.6,
+    district2PedestrianGroupCohesion: 0.4,
     
     // Environment
     fogIntensity: 0,
@@ -410,8 +418,8 @@ export function createUI({
     }
   };
 
-  // --- Folder: Street District ---
-  const fDistrict = gui.addFolder("Street District");
+  // --- Folder: Street District (Hill 1) ---
+  const fDistrict = gui.addFolder("Street District 1");
   
   fDistrict
     .add(params, "districtEnabled")
@@ -423,20 +431,59 @@ export function createUI({
     });
   
   fDistrict
-    .add(params, "streetPedestriansCount", 0, 400, 1)
+    .add(params, "streetPedestriansCount", 0, 100, 1)
     .name("Pedestrians")
     .onChange((v) => {
       if (streetDistrict) {
         streetDistrict.setStreetPedestriansPopulation(Math.floor(v));
       }
+      // Also apply to District 2 (same population count for both)
+      if (streetDistrict2) {
+        streetDistrict2.setStreetPedestriansPopulation(Math.floor(v));
+      }
     });
   
   fDistrict
-    .add(params, "firefliesCount", 0, 800, 1)
+    .add(params, "firefliesCount", 0, 400, 1)
     .name("Fireflies")
     .onChange((v) => {
       if (streetDistrict) {
         streetDistrict.setFirefliesPopulation(Math.floor(v));
+      }
+      // Also apply to District 2 (same firefly count for both)
+      if (streetDistrict2) {
+        streetDistrict2.setFirefliesPopulation(Math.floor(v));
+      }
+    });
+
+  // --- Folder: Street District (Hill 2) - Independent Behavior Controls ---
+  const fDistrict2 = gui.addFolder("Street District 2");
+  
+  fDistrict2
+    .add(params, "district2Enabled")
+    .name("Enabled")
+    .onChange((v) => {
+      if (streetDistrict2) {
+        streetDistrict2.setEnabled(v);
+      }
+    });
+  
+  // Note: Population is controlled by District 1 slider above
+  fDistrict2
+    .add(params, "district2PedestrianAvoidance", 0, 2.0, 0.1)
+    .name("Pedestrian Avoidance")
+    .onChange((v) => {
+      if (streetDistrict2 && streetDistrict2.streetPedestrians) {
+        streetDistrict2.streetPedestrians.params.avoidPedestrians = v;
+      }
+    });
+  
+  fDistrict2
+    .add(params, "district2PedestrianGroupCohesion", 0, 1.0, 0.05)
+    .name("Group Cohesion")
+    .onChange((v) => {
+      if (streetDistrict2 && streetDistrict2.streetPedestrians) {
+        streetDistrict2.streetPedestrians.params.groupCohesion = v;
       }
     });
 

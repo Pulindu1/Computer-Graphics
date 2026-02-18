@@ -301,6 +301,24 @@ const streetDistrict = new StreetDistrict({
 });
 streetDistrict.generate();
 
+// --- Street District 2: duplicate street on opposite side ---
+const streetDistrict2 = new StreetDistrict({
+  scene: scene,
+  terrain: terrain,
+  params: {
+    centerX: -350,   // Mirrored on opposite side
+    centerZ: 200,    // Same Z position
+    streetWidth: 50,  // Same dimensions
+    streetLength: 300,
+    shoulderWidth: 40,
+    enabled: true,
+    mirrorHouses: true,   // Flip houses to opposite side with windows/doors facing other way
+    flipHouseSide: true,  // Place houses on opposite side of the road (closer to map edge)
+    skipPyramid: true,    // No pyramid for street 2
+  },
+});
+streetDistrict2.generate();
+
 // Enable shadows for lighting to work - optimized for performance
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;  // Cheaper than PCFSoftShadowMap for point lights
@@ -431,8 +449,9 @@ const { gui, params } = createUI({
   // Street lamps
   streetLamps,
   
-  // Street district
+  // Street districts
   streetDistrict,
+  streetDistrict2,
 });
 
 // Quick sanity inserts (dummy points)
@@ -521,8 +540,9 @@ function animate() {
   // Update crowd simulation
   crowdManager.update(dt, t);
   
-  // Update street district (LOD updates + light festival animation)
+  // Update street districts (LOD updates + light festival animation)
   streetDistrict.update(camera, t);
+  streetDistrict2.update(camera, t);
   
   // Update street lamps (light pool + shadow LOD)
   streetLamps.update(camera);
