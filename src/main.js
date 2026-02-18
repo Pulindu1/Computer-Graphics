@@ -1,4 +1,9 @@
 import * as THREE from "three";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
+import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
 import { initThree } from "./core/initThree.js";
 import { installResizeHandler } from "./core/resize.js";
 import { KeyboardCameraController } from "./core/keyboardCamera.js";
@@ -27,6 +32,113 @@ import { Perf } from "./perf.js";
 
 const { scene, camera, renderer, controls } = initThree();
 installResizeHandler(camera, renderer);
+
+// --- Post-Processing Pipeline (Topic 5: Signal Processing + Aliasing) ---
+let composer, renderPass, bloomPass, fxaaPass;
+let enablePost = false;  // Temporarily disabled to debug white screen
+let enableBloom = true;
+let enableFXAA = true;
+let useMSAA = false;
+
+// STEP 6: Bloom parameters tuned for "Light Festival" aesthetic
+const bloomConfig = {
+  strength: 0.8,   // How much bloom contributes (0.6-1.2 sweet spot)
+  radius: 0.4,     // Blur spread (0.3-0.8, lower = tighter glow)
+  threshold: 0.3   // Only pixels brighter than this bloom (0.2-0.5)
+};
+
+function createComposer(scene, camera) {
+  try {
+    composer = new EffectComposer(renderer);
+    composer.setSize(window.innerWidth, window.innerHeight);
+    composer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+    // RenderPass: base scene rendering
+    renderPass = new RenderPass(scene, camera);
+    renderPass.clearColor = new THREE.Color(0x1a1a2e);  // Dark background
+    composer.addPass(renderPass);
+
+    // UnrealBloomPass: bright-pass + blur for optics simulation
+    // STEP 6: Tuned parameters to avoid "washing out" the scene
+    bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(window.innerWidth, window.innerHeight),
+      bloomConfig.strength,    // strength
+      bloomConfig.radius,      // radius (gaussian blur)
+      bloomConfig.threshold    // threshold (isolates bright lanterns/pyramid/fireflies)
+    );
+    bloomPass.enabled = enableBloom;
+    composer.addPass(bloomPass);
+
+    // FXAAShader Pass: screen-space anti-aliasing
+    // Performs edge detection + blending to reduce spatial aliasing
+    fxaaPass = new ShaderPass(FXAAShader);
+    fxaaPass.enabled = enableFXAA;
+    composer.addPass(fxaaPass);
+
+    updateFXAAResolution();
+    applyPostToggles();
+    
+    console.log("[Post-Processing] Composer initialized with Bloom + FXAA");
+  } catch (e) {
+    console.error("[Post-Processing] Failed to initialize composer:", e);
+    enablePost = false;  // Fallback to direct rendering
+  }
+}
+
+function updateFXAAResolution() {
+  if (!fxaaPass || !fxaaPass.material) return;
+  const pixelRatio = renderer.getPixelRatio();
+  const resX = 1 / (window.innerWidth * pixelRatio);
+  const resY = 1 / (window.innerHeight * pixelRatio);
+  
+  if (fxaaPass.material.uniforms && fxaaPass.material.uniforms["resolution"]) {
+    fxaaPass.material.uniforms["resolution"].value.set(resX, resY);
+  }
+}
+
+function applyPostToggles() {
+  if (!bloomPass || !fxaaPass) return;
+  bloomPass.enabled = enableBloom;
+  fxaaPass.enabled = enableFXAA;
+}
+
+// Expose post-processing controls to UI
+window.postProcessingAPI = {
+  setEnablePost: (v) => { enablePost = v; },
+  setEnableBloom: (v) => { enableBloom = v; applyPostToggles(); },
+  setEnableFXAA: (v) => { enableFXAA = v; applyPostToggles(); },
+  setBloomStrength: (v) => { 
+    bloomConfig.strength = v;
+    if (bloomPass) bloomPass.strength = v; 
+  },
+  setBloomThreshold: (v) => { 
+    bloomConfig.threshold = v;
+    if (bloomPass) bloomPass.threshold = v; 
+  },
+  setBloomRadius: (v) => { 
+    bloomConfig.radius = v;
+    if (bloomPass) bloomPass.radius = v; 
+  }
+};
+
+// Handle composer resizing on window resize
+window.updateComposerSize = () => {
+  if (!composer) return;
+  
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  const pixelRatio = Math.min(window.devicePixelRatio, 2);
+  
+  // STEP 5: Resize composer and all passes
+  composer.setSize(width, height);
+  composer.setPixelRatio(pixelRatio);
+  
+  // Critical: FXAA needs new resolution uniform when window resizes
+  updateFXAAResolution();
+  
+  console.log(`[Post-Processing] Resized to ${width}x${height} @ ${pixelRatio}px`);
+};
+
 
 // --- Keyboard Camera Controller ---
 const keyboardCamera = new KeyboardCameraController(camera, 500);  // Speed: 500 units/sec for fast traversal
@@ -253,6 +365,9 @@ function rebuildOrbs(agentCount) {
 
 rebuildOrbs(300); // initial count
 
+// --- Initialize Post-Processing Pipeline (Bloom + FXAA) ---
+createComposer(scene, camera);
+
 // --- Spatial grid (for later agents/obstacles) ---
 const grid = new UniformGrid(20); // cellSize in world units
 // Debug overlay to visualise discretisation
@@ -464,7 +579,12 @@ function animate() {
   // If later you want “wind” motion, you can re-displace terrain here.
   // Keep it static for now (cheaper + stable base).
 
-  renderer.render(scene, camera);  
+  // Render with post-processing pipeline (Bloom + FXAA)
+  if (enablePost && composer) {
+    composer.render();
+  } else {
+    renderer.render(scene, camera);
+  }
   
   // Update stats displays
   updateStatsDisplay();

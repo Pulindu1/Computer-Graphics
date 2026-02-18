@@ -1,6 +1,7 @@
 /*
   Keeps camera projection + renderer size
   in sync with browser window resizing.
+  Also handles post-processing composer resizing.
 */
 
 export function installResizeHandler(camera, renderer) {
@@ -17,6 +18,11 @@ export function installResizeHandler(camera, renderer) {
 
     // Prevent extreme pixel ratios killing performance
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+    // Update post-processing composer if it exists
+    if (window.updateComposerSize) {
+      window.updateComposerSize();
+    }
   }
 
   window.addEventListener("resize", onResize);

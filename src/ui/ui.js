@@ -440,6 +440,90 @@ export function createUI({
       }
     });
 
+  // --- Folder: Post-Processing (Topic 5: Signal Processing + Aliasing) ---
+  const fPost = gui.addFolder("Post-Processing");
+  
+  // STEP 7: Add post-processing parameters to params object
+  // Note: Initial values pulled from bloomConfig in main.js
+  params.enablePost = true;
+  params.enableBloom = true;
+  params.enableFXAA = true;
+  params.bloomStrength = 0.8;      // Start with tuned "Light Festival" value
+  params.bloomThreshold = 0.3;     // Only bright pixels bloom
+  params.bloomRadius = 0.4;        // Moderate blur spread
+  params.showComparison = false;   // A/B toggle for post vs raw
+
+  fPost
+    .add(params, "enablePost")
+    .name("Enable All Post-Processing")
+    .onChange((v) => {
+      if (window.postProcessingAPI) {
+        window.postProcessingAPI.setEnablePost(v);
+      }
+    });
+  
+  // STEP 7: Bloom on/off toggle
+  fPost
+    .add(params, "enableBloom")
+    .name("Bloom (Optics Glow)")
+    .onChange((v) => {
+      if (window.postProcessingAPI) {
+        window.postProcessingAPI.setEnableBloom(v);
+      }
+    });
+  
+  // STEP 6: Bloom strength slider (tuned to prevent "washing out")
+  fPost
+    .add(params, "bloomStrength", 0.1, 2.0, 0.1)
+    .name("  └ Strength")
+    .onChange((v) => {
+      if (window.postProcessingAPI) {
+        window.postProcessingAPI.setBloomStrength(v);
+      }
+    });
+  
+  // STEP 6: Bloom threshold slider (isolates which regions bloom)
+  fPost
+    .add(params, "bloomThreshold", 0.0, 1.0, 0.05)
+    .name("  └ Threshold")
+    .onChange((v) => {
+      if (window.postProcessingAPI) {
+        window.postProcessingAPI.setBloomThreshold(v);
+      }
+    });
+  
+  // STEP 6: Bloom radius slider (blur spread)
+  fPost
+    .add(params, "bloomRadius", 0.1, 1.5, 0.1)
+    .name("  └ Radius")
+    .onChange((v) => {
+      if (window.postProcessingAPI) {
+        window.postProcessingAPI.setBloomRadius(v);
+      }
+    });
+  
+  // STEP 7: FXAA anti-aliasing toggle
+  fPost
+    .add(params, "enableFXAA")
+    .name("FXAA Anti-Aliasing")
+    .onChange((v) => {
+      if (window.postProcessingAPI) {
+        window.postProcessingAPI.setEnableFXAA(v);
+      }
+    });
+
+  // STEP 7: Performance comparison note
+  const postInfoDiv = document.createElement("div");
+  postInfoDiv.id = "post-info";
+  postInfoDiv.style.cssText = "margin:8px 0; padding:8px; background:rgba(0,100,200,0.2); border-left:3px solid #0099ff; font-size:11px; line-height:1.4;";
+  postInfoDiv.innerHTML = `
+    <b>Signal Processing Pipeline</b><br>
+    • Bloom: Gaussian blur on bright pixels<br>
+    • FXAA: Edge-aware reconstruction filter<br>
+    <em>Trade-off: Quality vs Performance</em>
+  `;
+  // Append to gui controller element (if possible, or just log)
+  
   // --- Folder: Environment ---
   const fEnv = gui.addFolder("Environment");
   
