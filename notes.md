@@ -261,6 +261,73 @@ Occupancy heatmap: `InstancedMesh` of flat planes coloured by agent density per 
 
 Query cell overlay: Highlights all grid cells accessed during neighbour queries in yellow. Demonstrates exactly which cells are searched per frame — visual proof that the spatial hash limits the search to a small neighbourhood.
 
+#### 2b-v. Procedural Vegetation: Trees & Rocks
+
+**Files**: 
+- `src/environment/trees/TreeSystem.js` — Tree orchestrator
+- `src/environment/trees/treePlacement.js` — Placement algorithm
+- `src/environment/trees/treeMeshes.js` — Geometry & GPU wind shader
+- `src/environment/trees/treeLodBuckets.js` — 3-tier LOD management
+- `src/environment/vegetation/VegetationSystem.js` — Rock billboarding system
+- `src/environment/vegetation/vegetationPlacement.js` — Vegetation placement
+- `src/environment/vegetation/vegetationMeshes.js` — Billboard geometry
+
+**Tree Placement Algorithm**:
+
+Procedural placement uses candidate sampling with rejection testing. Budget: O(count × 30) ≈ 24,000 iterations for 800 trees.
+
+**Rejection criteria** (cheapest to most expensive):
+1. **River corridor**: Reject if inside $d < R_{\text{river}} + m_r$ where $R_{\text{river}} = 56$, $m_r = 12$
+2. **Street exclusion**: Reject if inside any street rectangle (halfWidth = 50, halfLength = 300) plus margin $m_s = 55$
+3. **Slope gate**: Reject if $\|\nabla h\|^2 > \text{maxSlope}^2 = 3.0$ (allows steep hill placement)
+4. **Height gate**: Reject if $y < -3$ (avoids riverbed)
+5. **Spacing grid**: O(k) occupancy grid (cell size = minSpacing = 18) ensures no two trees closer than 18 units — avoids O(N²) brute-force
+
+**Distribution**:
+- 60% large trees (7-seg trunk + 8-seg cone, scale 8.0–15.0)
+- 40% small trees (4-seg trunk + 5-seg cone, 0.66× scale)
+- Total: ~800 trees across accessible terrain
+
+**GPU Wind Animation**:
+
+Wind is entirely GPU-driven. Shader patches the material's vertex shader via `onBeforeCompile`:
+
+$$\text{worldPos} = \text{instanceMatrix} \times \text{origin}$$
+$$\text{phase} = \text{worldPos}.x + 0.5 \times \text{worldPos}.z \quad \text{(spatial coherence)}$$
+$$\text{sway} = \sin(\text{phase} + u_{\text{windTime}} \times u_{\text{windSpeed}}) \times \text{strength}$$
+$$\text{displaceZ} = \text{sway} \times (y / \text{trunkHeight})$$
+
+This gives each tree a unique wind phase based on position, creating natural spatial variation without per-tree CPU updates. Single uniform update per frame (one float): $\Delta u_{\text{windTime}} = \Delta t$.
+
+**Tree LOD System** (`treeLodBuckets.js`):
+
+3-tier LOD with distance-based redistribution every 0.25 seconds (not per-frame):
+
+| Tier | Range | Trunk | Leaves | Wind | Comment |
+|------|-------|-------|--------|------|---------|
+| NEAR | 0–80m | 7 seg | 8 seg | ✓ | Full detail, wind animation |
+| MID | 80–180m | 5 seg | 6 seg | ✗ | Medium fidelity, no wind |
+| FAR | >180m | 4 seg | 4 seg | ✗ | Minimal, fast rendering |
+
+**Hysteresis**:
+- Enter NEAR at 80m, exit at 95m (15m gap prevents pop-in)
+- Enter FAR at 185m, exit at 170m (15m gap prevents oscillation)
+
+Total GPU cost: ~2 draw calls (trunk + leaves) per LOD tier × 3 tiers + wind shader = negligible overhead vs. individual trees.
+
+**Rock Vegetation** (Billboarded Quads):
+
+~400 rocks scattered on grass (same placement rules as trees, but minSpacing = 8).
+
+**Billboard technique**:
+- Geometry: Simple 1×1 quad (2 triangles, 4 vertices)
+- Material: Transparent `MeshStandardMaterial` with `alphaTest = 0.1` (discard black background pixels)
+- Per-frame rotation: Each quad rotates to face camera via `lookAt(camera.position)`
+- Instancing: Single `InstancedMesh` call (1 draw call for all rocks)
+- Scale: 3.0× to match landscape size
+
+Cost per frame: 1 matrix update per rock (camera-facing rotation) in `vegetationSystem.update(camera)`, plus 1 instanced draw call. Total: O(N) CPU, 1 GPU call.
+
 ---
 
 ## Question 3: High-Density Crowd Simulation & Kinematics (40 Marks)
@@ -494,6 +561,27 @@ Hysteresis-based switching prevents popping (see §3c-iii).
 4. All other lamps: emissive orb glow only (no real light contribution) — visually identical at distance
 
 This bounds the lighting cost to a constant maximum regardless of lamp count.
+
+#### 4a-iii. Tree LOD & Vegetation Billboard Rendering
+
+**Tree LOD System** (`src/environment/trees/treeLodBuckets.js`):
+
+Implements **discrete 3-tier LOD** with hysteresis-based transitions (see §2b-v):
+
+- **NEAR tier** (0–80m): Full geometric detail (7-seg trunk, 8-seg cone) + GPU wind animation
+  - Redistribution: Every 0.25 seconds (not per-frame) to amortise cost
+  - Hysteresis: Enter at 80m, exit at 95m (15m buffer prevents pop-in oscillation)
+  
+- **MID tier** (80–180m): Reduced segments (5-seg trunk, 6-seg cone), no wind
+  - Shader simplification reduces per-vertex computation
+  - Still rendered via InstancedMesh for efficiency
+  
+- **FAR tier** (>180m): Minimal geometry (4-seg trunk, 4-seg cone)
+  - Culled from view at distances >250m entirely
+
+**Billboard Rendering** (vegetation rocks):
+
+Uses **screen-space oriented quads** (1×1 geometry, 2 triangles) with camera-facing rotation per frame. No distance-based LOD (rocks are sparse enough that 1 mesh suffices for all distances). Transparency and `alphaTest` provide natural silhouette edges without explicit depth sorting.
 
 ### 4b) Signal Processing & Light Transport (10 Marks)
 

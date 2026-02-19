@@ -26,6 +26,8 @@ import { WalkwayZone } from "./crowd/CrowdZoneWalkway.js";
 import { StreetLampSystem } from "./environment/StreetLampSystem.js";
 import { StreetDistrict } from "./world/streetDistrict.js";
 import { BezierBlanket } from "./parametric/bezierBlanket.js";
+import { TreeSystem } from "./environment/trees/TreeSystem.js";
+import { VegetationSystem } from "./environment/vegetation/VegetationSystem.js";
 import { createUI } from "./ui/ui.js";
 import { Stats } from "./stats.js";
 import { Perf } from "./perf.js";
@@ -321,6 +323,33 @@ const streetDistrict2 = new StreetDistrict({
 });
 streetDistrict2.generate();
 
+// --- Tree System (procedural grass-only placement, instanced LOD + GPU wind) ---
+// Street configs drive the exclusion zones (trees won't spawn on road/pavement).
+// halfWidth/halfLength must match streetDistrict params exactly:
+// StreetDistrict uses streetWidth as halfWidth → PlaneGeometry(streetWidth*2, streetLength*2)
+// streetWidth:50, streetLength:300 → halfWidth:50, halfLength:300
+const STREET_CONFIGS = [
+  { centerX:  350, centerZ: 200, halfWidth: 50, halfLength: 300 },
+  { centerX: -350, centerZ: 200, halfWidth: 50, halfLength: 300 },
+];
+
+const treeSystem = new TreeSystem({
+  scene,
+  terrain,
+  river,
+  streets: STREET_CONFIGS,
+});
+treeSystem.build();
+
+// --- Vegetation System (Rocks & Stumps) ---
+const vegetationSystem = new VegetationSystem({
+  scene,
+  terrain,
+  river,
+  streets: STREET_CONFIGS,
+});
+vegetationSystem.build();
+
 // --- Bézier Blanket Canopy (above Street 2) ---
 // Street 2 reference frame:
 // center: (-350, streetHeight, 200)
@@ -487,6 +516,12 @@ const { gui, params } = createUI({
   
   // Parametric elements
   bezierBlanket,
+
+  // Tree system
+  treeSystem,
+  
+  // Vegetation system
+  vegetationSystem,
 });
 
 // Quick sanity inserts (dummy points)
@@ -584,6 +619,12 @@ function animate() {
   
   // Update street lamps (light pool + shadow LOD)
   streetLamps.update(camera);
+
+  // Update tree system (wind uniforms + LOD bucket redistribution every 0.25s)
+  treeSystem.update(camera, dt);
+  
+  // Update vegetation system (billboarding - face camera)
+  vegetationSystem.update(camera);
   
   // update swarm (movement + separation)
   // Pass spatial hash only if mode is "hash", otherwise pass null for naive O(n²) mode

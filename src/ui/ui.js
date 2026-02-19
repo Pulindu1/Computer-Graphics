@@ -1,6 +1,7 @@
 // 📄 src/ui/ui.js
 import { GUI } from "lil-gui";
 import * as THREE from "three";
+import { addTreesFolder } from "./treesFolder.js";
 
 /**
  * Scalable GUI (lil-gui) like the provided exercise:
@@ -33,6 +34,8 @@ export function createUI({
   streetDistrict,
   streetDistrict2,
   bezierBlanket,
+  treeSystem,
+  vegetationSystem,
 } = {}) {
   const gui = new GUI({ title: "Swarm Controls" });
 
@@ -85,6 +88,10 @@ export function createUI({
     streetPedestriansCount: 25,
     firefliesCount: 100,
     lightCubesEnabled: true,
+    
+    // Environment Visibility
+    rocksVisible: true,
+    blanketVisible: true,
     lightCubesIntensity: 2.5,
     
     // Street District 2 (separate controls)
@@ -750,6 +757,32 @@ export function createUI({
   fOrbs.open();
   fPeople.open();
   fEnv.open();
+
+  // --- Folder: Trees ---
+  if (treeSystem) {
+    addTreesFolder(gui, treeSystem, params);
+  }
+
+  // --- Folder: Environment Visibility ---
+  const envFolder = gui.addFolder("Environment Visibility");
+  
+  // Rocks toggle
+  if (vegetationSystem) {
+    envFolder.add(params, "rocksVisible")
+      .name("Rocks")
+      .onChange((visible) => {
+        vegetationSystem.setVisible(visible);
+      });
+  }
+  
+  // Bézier blanket toggle
+  if (bezierBlanket) {
+    envFolder.add(params, "blanketVisible")
+      .name("Glowing Blanket")
+      .onChange((visible) => {
+        bezierBlanket.mesh.visible = visible;
+      });
+  }
 
   return { gui, params };
 }

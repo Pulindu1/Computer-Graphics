@@ -1,0 +1,124 @@
+/**
+ * vegetationMeshes.js
+ * Billboarded quad geometry for rocks and stumps.
+ * Each quad is a 2D plane that will face the camera.
+ */
+
+import * as THREE from "three";
+
+/**
+ * Create a billboarded quad geometry.
+ * Size is 1x1 by default (scale via instance matrix).
+ */
+function createBillboardQuad() {
+  const geometry = new THREE.BufferGeometry();
+  
+  // Quad vertices (centered at origin, facing +Z initially)
+  const positions = new Float32Array([
+    -0.5, -0.5, 0,  // bottom-left
+     0.5, -0.5, 0,  // bottom-right
+     0.5,  0.5, 0,  // top-right
+    -0.5,  0.5, 0,  // top-left
+  ]);
+  
+  const uvs = new Float32Array([
+    0, 1,  // bottom-left
+    1, 1,  // bottom-right
+    1, 0,  // top-right
+    0, 0,  // top-left
+  ]);
+  
+  const indices = new Uint16Array([0, 1, 2, 0, 2, 3]);
+  
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+  geometry.computeVertexNormals();
+  
+  return geometry;
+}
+
+/**
+ * Create materials for vegetation.
+ * @param {object} textures - { rock: Texture }
+ */
+export function buildVegetationMaterials(textures) {
+  const material = new THREE.MeshStandardMaterial({
+    map: null,
+    side: THREE.DoubleSide,
+    metalness: 0.0,
+    roughness: 1.0,
+    flatShading: false,
+    transparent: true,
+    alphaTest: 0.1,  // Discard pixels with alpha < 0.1 to remove black background
+  });
+  
+  return {
+    rock: material.clone(),
+  };
+}
+
+/**
+ * Create instanced mesh pair for vegetation type (rock or stump).
+ * @param {object} params
+ *   maxCount, texture, material
+ */
+export function createVegetationMeshPair(maxCount, texture, material) {
+  const geometry = createBillboardQuad();
+  
+  // Set texture
+  const mat = material.clone();
+  mat.map = texture;
+  
+  const mesh = new THREE.InstancedMesh(geometry, mat, maxCount);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+  mesh.count = 0;
+  
+  return mesh;
+}
+
+/**
+ * Filter instances by type.
+ */
+export function getVegetationByType(instances, type) {
+  const indices = [];
+  for (let i = 0; i < instances.length; i++) {
+    if (instances[i].type === type) indices.push(i);
+  }
+  return indices;
+}
+
+/**
+ * Apply matrices for vegetation (billboarded quads).
+ * Will be updated each frame to face camera.
+ */
+export function applyVegetationMatrices(instances, indices, mesh, camera) {
+  const n = indices.length;
+  mesh.count = n;
+  
+  const dummy = new THREE.Object3D();
+  const cameraDir = new THREE.Vector3();
+  
+  for (let i = 0; i < n; i++) {
+    const inst = instances[indices[i]];
+    const pos = new THREE.Vector3(inst.x, inst.y, inst.z);
+    
+    // Make quad face camera
+    cameraDir.subVectors(camera.position, pos).normalize();
+    
+    dummy.position.copy(pos);
+    // Scale up to make visible (3x larger)
+    dummy.scale.set(4.5, 4.5, 1.5);
+    
+    // Align to face camera
+    dummy.lookAt(camera.position);
+    dummy.rotateZ(inst.rotY * 0.2);  // Slight random tilt
+    
+    dummy.updateMatrix();
+    mesh.setMatrixAt(i, dummy.matrix);
+  }
+  
+  mesh.instanceMatrix.needsUpdate = true;
+}
