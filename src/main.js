@@ -395,6 +395,9 @@ let orbLOD = null;
 let heatmap = null;
 let queryCellOverlay = null;
 
+// --- Focus agent highlight for 3x3 Query Proof ---
+let focusAgentMarker = null;
+
 // keep track of brightness so rebuild preserves it
 let orbBrightness = 1.0;
 
@@ -524,6 +527,12 @@ const { gui, params } = createUI({
   vegetationSystem,
 });
 
+// Initialize animation LOD cameras for crowd systems
+leftWalkway.setCamera(camera);
+rightWalkway.setCamera(camera);
+streetDistrict.setCamera(camera);
+streetDistrict2.setCamera(camera);
+
 // Quick sanity inserts (dummy points)
 grid.clear();
 grid.insert(0, 0, 0);
@@ -645,20 +654,68 @@ function animate() {
     heatmapMs = 0;
   }
   
-  // Update query cell overlay (shows ALL cells accessed during this frame)
-  queryCellOverlay.mesh.visible = params.showQueryCells && params.neighborMode === "hash";
-  
-  if (params.showQueryCells && params.neighborMode === "hash" && spatial) {
-    const keysSize = spatial.allQueryKeys.size;
-    if (keysSize > 0) {
+  // --- Query Cell Overlay Logic ---
+  // Normal: show all queried cells
+  if (params.showQueryCells && params.neighborMode === "hash") {
+    queryCellOverlay.mesh.visible = true;
+    if (focusAgentMarker) focusAgentMarker.visible = false;
+    if (spatial && spatial.allQueryKeys.size > 0) {
       const keys = Array.from(spatial.allQueryKeys);
       queryCellOverlay.updateFromKeys(keys, spatial);
     }
+  // 3x3 Query Proof: highlight a focus agent and its 3x3 neighborhood
+  } else if (params.showQueryProof && params.neighborMode === "hash" && swarm && spatial && river && typeof river.centerX === "function" && swarm.z && swarm.dx && typeof swarm.z.length === "number" && typeof swarm.dx.length === "number") {
+    queryCellOverlay.mesh.visible = true;
+    // Cap the number of agents checked to avoid freeze
+    const MAX_CHECK = Math.min(swarm.count || 0, 1000);
+    let focusIdx = -1;
+    let minDist = Infinity;
+    for (let i = 0; i < MAX_CHECK; ++i) {
+      const zi = swarm.z[i];
+      const dxi = swarm.dx[i];
+      if (typeof zi !== "number" || typeof dxi !== "number") continue;
+      const x = river.centerX(zi) + dxi;
+      const z = zi;
+      const dist = Math.abs(x - river.centerX(z));
+      if (dist < minDist) {
+        minDist = dist;
+        focusIdx = i;
+      }
+    }
+    if (focusIdx === -1) {
+      queryCellOverlay.mesh.count = 0;
+      if (focusAgentMarker) focusAgentMarker.visible = false;
+      return;
+    }
+    const x = river.centerX(swarm.z[focusIdx]) + swarm.dx[focusIdx];
+    const z = swarm.z[focusIdx];
+    const cx = Math.floor(x / spatial.cellSize);
+    const cz = Math.floor(z / spatial.cellSize);
+    const keys = [];
+    for (let dx = -1; dx <= 1; ++dx) {
+      for (let dz = -1; dz <= 1; ++dz) {
+        keys.push(spatial._packKey(cx + dx, cz + dz));
+      }
+    }
+    queryCellOverlay.updateFromKeys(keys, spatial);
+
+    // --- Highlight the focus agent visually ---
+    if (!focusAgentMarker) {
+      const sphereGeo = new THREE.SphereGeometry(2.2, 20, 20);
+      const sphereMat = new THREE.MeshBasicMaterial({ color: 0xff00ff, emissive: 0xff00ff, transparent: true, opacity: 0.85 });
+      focusAgentMarker = new THREE.Mesh(sphereGeo, sphereMat);
+      focusAgentMarker.renderOrder = 9999;
+      focusAgentMarker.visible = true;
+      scene.add(focusAgentMarker);
+    }
+    focusAgentMarker.position.set(x, river.waterLevel + 2.5, z);
+    focusAgentMarker.visible = true;
   } else {
-    // Clear overlay when not in use
+    queryCellOverlay.mesh.visible = false;
     if (queryCellOverlay.mesh.count > 0) {
       queryCellOverlay.mesh.count = 0;
     }
+    if (focusAgentMarker) focusAgentMarker.visible = false;
   }
   
   // update instance transforms with LOD switching

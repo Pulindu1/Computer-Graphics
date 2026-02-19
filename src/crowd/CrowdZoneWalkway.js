@@ -2,6 +2,7 @@
 // Phase 1: Flow-field walking, two-lane rules, prioritized dithering, state-based behavior
 import * as THREE from "three";
 import { createMiniPersonMesh, animateHumanoid } from "./MiniPersonFactory.js";
+import { animateHumanoidLOD } from "./animationLOD.js";
 import { SpatialHashGrid } from "./SpatialHashGrid.js";
 
 // ── Behavior states (context-aware crowd logic) ──
@@ -73,6 +74,7 @@ export class WalkwayZone {
     this.agents = [];
     this.leaders = []; // Leader agents
     this.grid = new SpatialHashGrid(neighborRadius);
+    this.tmpNeighbors = []; // Preallocated temp array for queryInto
 
     // Global tunable weights (UI can override state weights)
     this.weights = {
@@ -91,6 +93,17 @@ export class WalkwayZone {
       queriesThisFrame: 0,
       avgNeighborsFound: 0,
       timings: { steering: 0, collisions: 0, physics: 0 },
+    };
+
+    // Animation LOD system initialization
+    this.camera = null; // Set externally via setCamera()
+    this.animLodEnabled = true;
+    this.animLodParams = {
+      NEAR_IN_SQ: 15 * 15,   // 15m
+      NEAR_OUT_SQ: 25 * 25,  // 25m
+      MID_IN_SQ: 25 * 25,    // 25m
+      MID_OUT_SQ: 60 * 60,   // 60m
+      MID_RATE: 4,           // Every 4 frames
     };
   }
 
@@ -168,6 +181,19 @@ export class WalkwayZone {
     }
   }
 
+  // ─────────────────────────── Animation LOD Control ─────────────────
+  setCamera(camera) {
+    this.camera = camera;
+  }
+
+  setAnimationLODEnabled(enabled) {
+    this.animLodEnabled = enabled;
+  }
+
+  setAnimationLODParams(params) {
+    this.animLodParams = { ...this.animLodParams, ...params };
+  }
+
   // ─────────────────────────── update loop ──────────────────────────
   update(dt, time) {
     this.stats.agentCount = this.agents.length;
@@ -186,7 +212,8 @@ export class WalkwayZone {
     this.updateBehaviorState(agent);
     this.updateMode(agent);
 
-    const neighbors = this.grid.query(agent);
+    this.grid.queryInto(agent.pos.x, agent.pos.z, this.tmpNeighbors);
+    const neighbors = this.tmpNeighbors;
     this.stats.queriesThisFrame++;
     this.stats.avgNeighborsFound += neighbors.length;
 
@@ -198,7 +225,12 @@ export class WalkwayZone {
     this.clampToPath(agent);
     this.syncSplineProgress(agent);
 
-    animateHumanoid(agent, time);
+    // Animation LOD: use LOD if camera available, otherwise fallback to full animation
+    if (this.camera && this.animLodEnabled) {
+      animateHumanoidLOD(agent, time, this.camera.position, this.animLodParams, this.animLodEnabled);
+    } else {
+      animateHumanoid(agent, time);
+    }
   }
 
   // ──────────────────── Behavior State Machine ──────────────

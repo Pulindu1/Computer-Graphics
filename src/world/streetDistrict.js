@@ -425,9 +425,25 @@ export class StreetDistrict {
     } else {
       console.warn("[StreetDistrict] Street pedestrians not initialized");
     }
-    this._houseRects = houseRects;
+  }
 
-    console.log("[StreetDistrict] Street pedestrians created");
+  // Animation LOD delegation methods
+  setCamera(camera) {
+    if (this.streetPedestrians) {
+      this.streetPedestrians.setCamera(camera);
+    }
+  }
+
+  setAnimationLODEnabled(enabled) {
+    if (this.streetPedestrians) {
+      this.streetPedestrians.setAnimationLODEnabled(enabled);
+    }
+  }
+
+  setAnimationLODParams(params) {
+    if (this.streetPedestrians) {
+      this.streetPedestrians.setAnimationLODParams(params);
+    }
   }
 
   // Per-frame update: LOD and shadow management

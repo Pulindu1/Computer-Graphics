@@ -46,6 +46,7 @@ export function createUI({
     showSpatialGrid: true,
     showOccupancy: false,
     showQueryCells: false,
+    showQueryProof: false, // 3x3 proof overlay
     selectedAgentId: -1,
     agentNeighborRadius: 10,
     cellSize: 20,
@@ -55,6 +56,7 @@ export function createUI({
     orbBrightness: typeof getBrightness === "function" ? getBrightness() : 2.0,
     
     // People (Crowd)
+    // Max: 600 by river + 250 per street (×2) = 1100 total
     peopleCount: typeof getPeopleCount === "function" ? getPeopleCount() : 40,
     
     // --- Phase 1: Flow-field & Advanced Crowd ---
@@ -85,7 +87,7 @@ export function createUI({
     
     // Street Districts
     districtEnabled: true,
-    streetPedestriansCount: 25,
+    streetPedestriansCount: 250,
     firefliesCount: 100,
     lightCubesEnabled: true,
     
@@ -96,7 +98,7 @@ export function createUI({
     
     // Street District 2 (separate controls)
     district2Enabled: true,
-    streetPedestriansCount2: 25,
+    streetPedestriansCount2: 250,
     firefliesCount2: 100,
     district2PedestrianAvoidance: 0.6,
     district2PedestrianGroupCohesion: 0.4,
@@ -137,9 +139,14 @@ export function createUI({
     .add(params, "showOccupancy")
     .name("Heatmap occupancy");
   
+
   fDebug
     .add(params, "showQueryCells")
     .name("Show query cells");
+
+  fDebug
+    .add(params, "showQueryProof")
+    .name("3x3 Query Proof");
 
   // --- Folder: Orbs ---
   const fOrbs = gui.addFolder("Orbs");
@@ -162,7 +169,7 @@ export function createUI({
   const fPeople = gui.addFolder("People");
   
   fPeople
-    .add(params, "peopleCount", 0, 200, 1)
+    .add(params, "peopleCount", 0, 1100, 1)
     .name("People count")
     .onFinishChange((v) => {
       if (typeof onSetPeopleCount === "function") onSetPeopleCount(Math.floor(v));
@@ -351,6 +358,77 @@ export function createUI({
       }
     }
   }, "clearAll").name("🗑️ Clear All");
+
+  // ─────────────────────── Animation LOD System ─────────────────────
+  const fAnimLOD = gui.addFolder("Animation LOD");
+
+  // Initialize animation LOD params in the params object
+  params.animationLODEnabled = true;
+  params.animationMidRate = 4;
+  params.animationNearDist = 50;
+  params.animationMidDist = 150;
+
+  // Apply initial LOD params to all crowd systems
+  const initialLodParams = {
+    NEAR_IN_SQ: params.animationNearDist * params.animationNearDist,
+    NEAR_OUT_SQ: (params.animationNearDist + 20) * (params.animationNearDist + 20),
+    MID_IN_SQ: (params.animationNearDist + 20) * (params.animationNearDist + 20),
+    MID_OUT_SQ: params.animationMidDist * params.animationMidDist,
+    MID_RATE: params.animationMidRate,
+  };
+  
+  if (leftWalkway) leftWalkway.setAnimationLODParams(initialLodParams);
+  if (rightWalkway) rightWalkway.setAnimationLODParams(initialLodParams);
+  if (streetDistrict) streetDistrict.setAnimationLODParams(initialLodParams);
+  if (streetDistrict2) streetDistrict2.setAnimationLODParams(initialLodParams);
+
+  fAnimLOD
+    .add(params, "animationLODEnabled")
+    .name("Enabled")
+    .onChange((v) => {
+      if (leftWalkway) leftWalkway.setAnimationLODEnabled(v);
+      if (rightWalkway) rightWalkway.setAnimationLODEnabled(v);
+      // Also set for street pedestrians if available
+      if (streetDistrict) streetDistrict.setAnimationLODEnabled(v);
+      if (streetDistrict2) streetDistrict2.setAnimationLODEnabled(v);
+    });
+
+  fAnimLOD
+    .add(params, "animationMidRate", 2, 8, 1)
+    .name("MID Rate (frames)")
+    .onChange((v) => {
+      const lodParams = { MID_RATE: v };
+      if (leftWalkway) leftWalkway.setAnimationLODParams(lodParams);
+      if (rightWalkway) rightWalkway.setAnimationLODParams(lodParams);
+      if (streetDistrict) streetDistrict.setAnimationLODParams(lodParams);
+      if (streetDistrict2) streetDistrict2.setAnimationLODParams(lodParams);
+    });
+
+  fAnimLOD
+    .add(params, "animationNearDist", 5, 30, 1)
+    .name("NEAR Distance (m)")
+    .onChange((v) => {
+      const lodParams = {
+        NEAR_IN_SQ: v * v,
+        NEAR_OUT_SQ: (v + 10) * (v + 10),
+        MID_IN_SQ: (v + 10) * (v + 10),
+      };
+      if (leftWalkway) leftWalkway.setAnimationLODParams(lodParams);
+      if (rightWalkway) rightWalkway.setAnimationLODParams(lodParams);
+      if (streetDistrict) streetDistrict.setAnimationLODParams(lodParams);
+      if (streetDistrict2) streetDistrict2.setAnimationLODParams(lodParams);
+    });
+
+  fAnimLOD
+    .add(params, "animationMidDist", 20, 100, 5)
+    .name("MID Distance (m)")
+    .onChange((v) => {
+      const lodParams = { MID_OUT_SQ: v * v };
+      if (leftWalkway) leftWalkway.setAnimationLODParams(lodParams);
+      if (rightWalkway) rightWalkway.setAnimationLODParams(lodParams);
+      if (streetDistrict) streetDistrict.setAnimationLODParams(lodParams);
+      if (streetDistrict2) streetDistrict2.setAnimationLODParams(lodParams);
+    });
 
   // Debug stats display
   const statsDisplay = document.createElement("div");

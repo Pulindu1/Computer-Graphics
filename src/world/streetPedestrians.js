@@ -1,8 +1,7 @@
-// Street Pedestrians: Group-based crowd with humanoid meshes from MiniPersonFactory
-// Features: leader/follower groups, collision avoidance, pyramid attraction, efficient neighbor queries
-
 import * as THREE from "three";
 import { createMiniPersonMesh, animateHumanoid } from "../crowd/MiniPersonFactory.js";
+import { animateHumanoidLOD } from "../crowd/animationLOD.js";
+import { cellCoord, packKey, unpackKey } from "../spacial/hashKey.js";
 
 class Agent {
   constructor(x, z, groupId, height) {
@@ -26,7 +25,7 @@ class Agent {
     this.acc.add(force);
   }
 
-  update(dt, agents, spatialHash, bounds, pyramidPos, preferences, lightCubeObstacles = []) {
+  update(dt, agents, neighbors, bounds, pyramidPos, preferences, lightCubeObstacles = []) {
     // Determine animation mode based on velocity (2 states: idle/walk)
     const speed = this.vel.length();
     this.mode = speed < 0.15 ? 0 : 1;
@@ -45,8 +44,8 @@ class Agent {
       this._applyFollowBehavior(agents, preferences);
     }
 
-    // Avoid collisions with nearby pedestrians (spatial hash)
-    this._applyAvoidanceForce(spatialHash, preferences);
+    // Avoid collisions with nearby pedestrians (using preallocated neighbors array)
+    this._applyAvoidanceForce(neighbors, preferences);
 
     // Avoid houses (simple rectangular bounds)
     this._applyHouseAvoidance(bounds, preferences);
@@ -123,10 +122,9 @@ class Agent {
     }
   }
 
-  _applyAvoidanceForce(spatialHash, preferences) {
+  _applyAvoidanceForce(neighbors, preferences) {
     if (preferences.avoidPedestrians <= 0) return;
 
-    const neighbors = spatialHash.getNear(this.pos.x, this.pos.z, 3);
     const avoidance = new THREE.Vector3();
 
     for (const other of neighbors) {
@@ -225,40 +223,56 @@ class Agent {
 class SpatialHash {
   constructor(cellSize) {
     this.cellSize = cellSize;
-    this.grid = new Map();
+    this.map = new Map();  // integer key -> agent array
+    this.tmpOut = [];      // Reusable output array for getNearInto
   }
 
   clear() {
-    this.grid.clear();
+    // Fast clear without re-allocating map
+    for (const bucket of this.map.values()) {
+      bucket.length = 0;
+    }
   }
 
   insert(agent) {
-    const cellX = Math.floor(agent.pos.x / this.cellSize);
-    const cellZ = Math.floor(agent.pos.z / this.cellSize);
-    const key = `${cellX},${cellZ}`;
+    const cx = cellCoord(agent.pos.x, this.cellSize);
+    const cz = cellCoord(agent.pos.z, this.cellSize);
+    const key = packKey(cx, cz);
 
-    if (!this.grid.has(key)) {
-      this.grid.set(key, []);
+    if (!this.map.has(key)) {
+      this.map.set(key, []);
     }
-    this.grid.get(key).push(agent);
+    this.map.get(key).push(agent);
   }
 
-  getNear(x, z, radius) {
-    const cellRadius = Math.ceil(radius / this.cellSize);
-    const cellX = Math.floor(x / this.cellSize);
-    const cellZ = Math.floor(z / this.cellSize);
-    const nearby = [];
+  /**
+   * Query into preallocated array (no allocation per call)
+   */
+  getNearInto(x, z, radius, out) {
+    out.length = 0;
+    const rCells = Math.ceil(radius / this.cellSize);
+    const cx0 = cellCoord(x, this.cellSize);
+    const cz0 = cellCoord(z, this.cellSize);
 
-    for (let dx = -cellRadius; dx <= cellRadius; dx++) {
-      for (let dz = -cellRadius; dz <= cellRadius; dz++) {
-        const key = `${cellX + dx},${cellZ + dz}`;
-        if (this.grid.has(key)) {
-          nearby.push(...this.grid.get(key));
+    for (let dz = -rCells; dz <= rCells; dz++) {
+      for (let dx = -rCells; dx <= rCells; dx++) {
+        const key = packKey(cx0 + dx, cz0 + dz);
+        const bucket = this.map.get(key);
+        if (bucket) {
+          for (let i = 0; i < bucket.length; i++) {
+            out.push(bucket[i]);
+          }
         }
       }
     }
+    return out;
+  }
 
-    return nearby;
+  /**
+   * Convenience: getNear returns a new array (for backwards compat, but uses internal buffer)
+   */
+  getNear(x, z, radius) {
+    return this.getNearInto(x, z, radius, this.tmpOut);
   }
 }
 
@@ -286,8 +300,31 @@ export class StreetPedestrians {
     this.root.name = "StreetPedestrians";
     scene.add(this.root);
 
+    // Animation LOD system
+    this.camera = null; // Set externally via setCamera()
+    this.animLodEnabled = true;
+    this.animLodParams = {
+      NEAR_IN_SQ: 15 * 15,   // 15m
+      NEAR_OUT_SQ: 25 * 25,  // 25m
+      MID_IN_SQ: 25 * 25,    // 25m
+      MID_OUT_SQ: 60 * 60,   // 60m
+      MID_RATE: 4,           // Every 4 frames
+    };
+
     this._groupLifespans = new Map();  // Track group creation times
     this._build();
+  }
+
+  setCamera(camera) {
+    this.camera = camera;
+  }
+
+  setAnimationLODEnabled(enabled) {
+    this.animLodEnabled = enabled;
+  }
+
+  setAnimationLODParams(params) {
+    this.animLodParams = { ...this.animLodParams, ...params };
   }
 
   _build() {
@@ -392,6 +429,9 @@ export class StreetPedestrians {
       this.spatialHash.insert(agent);
     }
 
+    // Preallocated temp array for all neighbor queries
+    const tmpNeighbors = [];
+
     // Bounds for wrapping/avoidance
     const bounds = {
       minX: this.street.centerX - this.street.width * 0.5,
@@ -404,11 +444,16 @@ export class StreetPedestrians {
 
     // Update each agent
     for (const agent of this.agents) {
-      agent.update(dt, this.agents, this.spatialHash, bounds, pyramidPos, this.params, lightCubeObstacles);
+      this.spatialHash.getNearInto(agent.pos.x, agent.pos.z, 3, tmpNeighbors);
+      agent.update(dt, this.agents, tmpNeighbors, bounds, pyramidPos, this.params, lightCubeObstacles);
 
-      // Animate humanoid walk cycle (only when walking, using accumulated time)
-      if (agent.mesh && agent.parts && agent.mode === 1) {
-        animateHumanoid(agent, agent.animationTime);
+      // Animate humanoid walk cycle using LOD system (if camera available)
+      if (agent.mesh && agent.parts) {
+        if (this.camera && this.animLodEnabled) {
+          animateHumanoidLOD(agent, agent.animationTime, this.camera.position, this.animLodParams, this.animLodEnabled);
+        } else {
+          animateHumanoid(agent, agent.animationTime);
+        }
       }
     }
 
