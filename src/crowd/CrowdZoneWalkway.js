@@ -4,6 +4,8 @@ import * as THREE from "three";
 import { createMiniPersonMesh, animateHumanoid } from "./MiniPersonFactory.js";
 import { animateHumanoidLOD } from "./animationLOD.js";
 import { SpatialHashGrid } from "./SpatialHashGrid.js";
+import { SpatialHashIndex } from "../spatial/SpatialHashIndex.js";
+import { QuadtreeIndex } from "../spatial/QuadtreeIndex.js";
 
 // ── Behavior states (context-aware crowd logic) ──
 const STATE_CRUISE = 0;
@@ -73,8 +75,15 @@ export class WalkwayZone {
     this.bodyRadius = 1.4;
     this.agents = [];
     this.leaders = []; // Leader agents
-    this.grid = new SpatialHashGrid(neighborRadius);
     this.tmpNeighbors = []; // Preallocated temp array for queryInto
+
+    // Pluggable spatial index — default to hash, swappable at runtime
+    this.spatialIndexMode = "hash"; // "hash" | "quadtree"
+    // Default generous world bounds (overridden via setSpatialBounds)
+    this._worldBounds = { minX: -500, minZ: -1200, maxX: 500, maxZ: 1200 };
+    this._hashIndex = new SpatialHashIndex(neighborRadius);
+    this._qtIndex   = new QuadtreeIndex(this._worldBounds, { capacity: 8, maxDepth: 10 });
+    this.grid = this._hashIndex; // active index reference (legacy name kept for compat)
 
     // Global tunable weights (UI can override state weights)
     this.weights = {
@@ -93,6 +102,8 @@ export class WalkwayZone {
       queriesThisFrame: 0,
       avgNeighborsFound: 0,
       timings: { steering: 0, collisions: 0, physics: 0 },
+      // Spatial index diagnostics (updated each frame from active index)
+      spatial: null, // reference to active index.stats
     };
 
     // Animation LOD system initialization
@@ -194,11 +205,28 @@ export class WalkwayZone {
     this.animLodParams = { ...this.animLodParams, ...params };
   }
 
+  /** Switch between "hash" and "quadtree" at runtime */
+  setSpatialIndexMode(mode) {
+    this.spatialIndexMode = mode;
+    this.grid = mode === "quadtree" ? this._qtIndex : this._hashIndex;
+    this.stats.spatial = this.grid.stats;
+  }
+
+  /** Update the world bounds used by the quadtree (call if scene moves) */
+  setSpatialBounds(bounds) {
+    this._worldBounds = bounds;
+    this._qtIndex.setBounds(bounds);
+  }
+
   // ─────────────────────────── update loop ──────────────────────────
   update(dt, time) {
     this.stats.agentCount = this.agents.length;
     this.stats.queriesThisFrame = 0;
     this.stats.avgNeighborsFound = 0;
+
+    // Keep active index in sync with mode toggle
+    this.grid = this.spatialIndexMode === "quadtree" ? this._qtIndex : this._hashIndex;
+    this.stats.spatial = this.grid.stats;
 
     this.grid.clear();
     for (const a of this.agents) this.grid.insert(a);
@@ -212,7 +240,7 @@ export class WalkwayZone {
     this.updateBehaviorState(agent);
     this.updateMode(agent);
 
-    this.grid.queryInto(agent.pos.x, agent.pos.z, this.tmpNeighbors);
+    this.grid.queryInto(agent.pos.x, agent.pos.z, this.neighborRadius, this.tmpNeighbors);
     const neighbors = this.tmpNeighbors;
     this.stats.queriesThisFrame++;
     this.stats.avgNeighborsFound += neighbors.length;

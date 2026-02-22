@@ -430,23 +430,79 @@ export function createUI({
       if (streetDistrict2) streetDistrict2.setAnimationLODParams(lodParams);
     });
 
-  // Debug stats display
+  // ─────────────────────── Spatial Index (Quadtree toggle) ──────────────────
+  const fSpatial = gui.addFolder("Spatial Index");
+  params.spatialIndexMode = "hash"; // "hash" | "quadtree"
+
+  fSpatial
+    .add(params, "spatialIndexMode", ["hash", "quadtree"])
+    .name("Mode")
+    .onChange((v) => {
+      if (leftWalkway)    leftWalkway.setSpatialIndexMode(v);
+      if (rightWalkway)   rightWalkway.setSpatialIndexMode(v);
+      if (streetDistrict)  streetDistrict.setSpatialIndexMode(v);
+      if (streetDistrict2) streetDistrict2.setSpatialIndexMode(v);
+    });
+
+  // ─────────────────────── Spatial Index Debug Overlay ─────────────────────
   const statsDisplay = document.createElement("div");
   statsDisplay.id = "crowd-stats";
-  statsDisplay.style.cssText = "position:fixed; top:10px; right:10px; background:rgba(0,0,0,0.7); color:#0f0; font-family:monospace; padding:10px; font-size:12px; z-index:999;";
+  statsDisplay.style.cssText = [
+    "position:fixed", "top:10px", "right:10px",
+    "background:rgba(0,0,0,0.75)", "color:#0f0",
+    "font-family:monospace", "padding:10px 14px",
+    "font-size:11px", "z-index:999", "line-height:1.6",
+    "min-width:220px", "border:1px solid #0a0",
+  ].join(";");
   document.body.appendChild(statsDisplay);
 
-  // Update stats every frame (will be called from main loop)
+  // Aggregate stats from all crowd systems
   window.updateCrowdStats = () => {
-    if (crowdManager) {
-      const stats = crowdManager.stats;
-      statsDisplay.innerHTML = `
-        <b>Crowd Stats</b><br>
-        Agents: ${stats.totalAgents}<br>
-        Queries: ${stats.totalQueries}<br>
-        Avg Neighbors: ${stats.avgNeighborsPerQuery.toFixed(1)}
-      `;
+    // Crowd agent counts
+    const walkL  = leftWalkway  ? leftWalkway.agents.length  : 0;
+    const walkR  = rightWalkway ? rightWalkway.agents.length : 0;
+    const totalPed = walkL + walkR;
+
+    // Collect spatial stats from all four systems
+    const sources = [
+      leftWalkway  ? leftWalkway.grid.stats    : null,
+      rightWalkway ? rightWalkway.grid.stats   : null,
+      streetDistrict  ? streetDistrict.spatialStats  : null,
+      streetDistrict2 ? streetDistrict2.spatialStats : null,
+    ].filter(Boolean);
+
+    const mode = params.spatialIndexMode;
+
+    let buildMs = 0, queryMs = 0, candidatesAvg = 0, nodesAvg = 0;
+    let nodeCount = 0, maxDepth = 0;
+    let n = 0;
+    for (const s of sources) {
+      buildMs      += s.buildMs     ?? 0;
+      queryMs      += s.queryMs     ?? 0;
+      candidatesAvg += s.candidatesAvg ?? 0;
+      n++;
+      if (mode === "quadtree") {
+        nodesAvg  += isNaN(s.nodesVisitedAvg) ? 0 : s.nodesVisitedAvg;
+        nodeCount += isNaN(s.nodeCount)        ? 0 : s.nodeCount;
+        maxDepth   = Math.max(maxDepth, isNaN(s.maxDepthReached) ? 0 : s.maxDepthReached);
+      }
     }
+    if (n > 0) candidatesAvg /= n;
+    if (n > 0) nodesAvg      /= n;
+
+    const qtRows = mode === "quadtree" ? `
+      Nodes visited/q: ${nodesAvg.toFixed(1)}<br>
+      Tree nodes:      ${nodeCount}<br>
+      Max depth:       ${maxDepth}` : "";
+
+    statsDisplay.innerHTML = `
+      <b>Spatial Index</b> [${mode}]<br>
+      ─────────────────<br>
+      Walkway agents:  ${walkL} + ${walkR}<br>
+      Build time:      ${buildMs.toFixed(2)} ms<br>
+      Query time:      ${queryMs.toFixed(2)} ms<br>
+      Candidates/q:    ${candidatesAvg.toFixed(1)}${qtRows}
+    `;
   };
 
   // --- Folder: Street Lamps ---

@@ -328,7 +328,74 @@ Inner class similarly refactored:
 - Map overhead: Fixed ~50KB for integer-keyed bucket Map (regardless of agent count)
 - **Total reduction**: ~90% fewer allocations, ~70% lower peak memory during queries
 
-#### 2b-iv. Debug Visualisations
+#### 2b-iv. Pluggable Spatial Index + Quadtree A/B Toggle
+
+**Files**:
+- `src/spatial/ISpatialIndex.js` — Interface contract
+- `src/spatial/SpatialHashIndex.js` — Existing hash behind the interface
+- `src/spatial/Quadtree.js` — Point quadtree implementation (node-pool, allocation-free)
+- `src/spatial/QuadtreeIndex.js` — Quadtree behind the interface
+
+**Motivation**: To empirically compare spatial hash vs point quadtree for crowd neighbour queries with the same agent code path — no algorithm changes, just swapping the index structure.
+
+**Interface Design** (`ISpatialIndex`):
+
+All crowd systems (walkway + street) now use a common pluggable interface:
+
+```javascript
+clear()                        // reset index each frame
+insert(agent)                  // add point at (agent.pos.x, agent.pos.z)
+queryInto(x, z, r, out)        // fill out[] with candidates; caller distance-filters
+stats: { buildMs, queryMs, candidatesAvg, nodesVisitedAvg, nodeCount, maxDepthReached }
+```
+
+Both `SpatialHashIndex` and `QuadtreeIndex` implement this contract. The active index is swapped at runtime via `setSpatialIndexMode("hash" | "quadtree")` on every crowd system, with no change to agent steering or avoidance logic.
+
+**Quadtree Algorithm** (point quadtree, rebuild-per-frame):
+
+Each frame: `clear()` resets the node pool pointer to 0 (no `new` calls), then all agents are inserted. Query uses AABB prune-and-collect — descend only into children whose bounds intersect the query rectangle, then exact distance-filter on candidates.
+
+Node pool design eliminates GC pressure:
+- Pre-allocate 4096 node objects once at construction
+- `clear()` just resets `_poolNext = 0` — all arrays are reused in-place
+- `_acquireNode()` pulls from pool without `new`
+
+**Parameters**:
+
+| Parameter | Default | Effect |
+|---|---|---|
+| `capacity` | 8 | Max points per leaf before splitting; lower → finer subdivision |
+| `maxDepth` | 10 | Prevents infinite splits on coincident agents |
+
+**Query complexity** (worst-case):
+
+$$T_{\text{query}} = O\!\left(\log_4 N + k\right)$$
+
+where $k$ is the number of candidates returned. In practice, the AABB prune at each node means only $O(\log_4 N)$ nodes are visited per query for a balanced tree.
+
+**Observed results**:
+
+The quadtree provides no meaningful throughput improvement over the spatial hash at steady camera state — both sustain 60 FPS at 1100 pedestrians. However, the quadtree reduces frame-time spikes **during camera movement**:
+
+- **Hash**: FPS can drop when large numbers of agents enter/leave camera frustum simultaneously, because the 3×3 cell neighbourhood queries still touch a fixed number of cells regardless of local density
+- **Quadtree**: Adapts subdivision to actual agent density; sparse regions are traversed in one or two node visits, so camera-movement-induced query bursts are cheaper on average
+
+The per-query `nodesVisitedAvg` metric (visible in the debug overlay when quadtree is active) is typically 6–14 nodes for the walkway crowd, compared to the hash which always scans a 3×3 = 9 cell block. In high-density clusters the quadtree visits slightly more nodes due to deeper trees; in sparse regions it visits fewer.
+
+**Debug overlay** (top-right HUD, "Spatial Index" label):
+
+| Field | Source |
+|---|---|
+| Build time (ms) | `clear` + all `insert` calls |
+| Query time (ms) | All `queryInto` calls this frame |
+| Candidates/query | Average candidates before distance-filter |
+| Nodes visited/query | *(quadtree only)* |
+| Tree node count | *(quadtree only)* |
+| Max depth reached | *(quadtree only)* |
+
+**UI toggle**: "Spatial Index" folder → `Mode` dropdown (`hash` / `quadtree`). Applies to all four crowd systems (left walkway, right walkway, street district 1, street district 2) simultaneously.
+
+#### 2b-v. Debug Visualisations
 
 **File**: `src/spacial/debugGridRenderer.js`
 

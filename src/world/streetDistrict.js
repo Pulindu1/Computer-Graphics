@@ -446,6 +446,18 @@ export class StreetDistrict {
     }
   }
 
+  /** Delegate spatial index mode to street pedestrians */
+  setSpatialIndexMode(mode) {
+    if (this.streetPedestrians) {
+      this.streetPedestrians.setSpatialIndexMode(mode);
+    }
+  }
+
+  /** Expose spatial stats for the debug overlay */
+  get spatialStats() {
+    return this.streetPedestrians ? this.streetPedestrians.spatialStats : null;
+  }
+
   // Per-frame update: LOD and shadow management
   update(camera, timeSec = 0) {
     if (!this.isGenerated || !this.params.enabled) return;

@@ -2,6 +2,8 @@ import * as THREE from "three";
 import { createMiniPersonMesh, animateHumanoid } from "../crowd/MiniPersonFactory.js";
 import { animateHumanoidLOD } from "../crowd/animationLOD.js";
 import { cellCoord, packKey, unpackKey } from "../spacial/hashKey.js";
+import { SpatialHashIndex } from "../spatial/SpatialHashIndex.js";
+import { QuadtreeIndex } from "../spatial/QuadtreeIndex.js";
 
 class Agent {
   constructor(x, z, groupId, height) {
@@ -295,7 +297,19 @@ export class StreetPedestrians {
     console.log("[StreetPedestrians] Constructor called with params:", this.params);
 
     this.agents = [];
-    this.spatialHash = new SpatialHash(6);  // 6-unit cells
+    // Pluggable spatial index — default hash, swappable to quadtree at runtime
+    this.spatialIndexMode = "hash"; // "hash" | "quadtree"
+    this._streetBounds = () => ({
+      minX: this.street.centerX - this.street.width  * 0.5 - 10,
+      minZ: this.street.centerZ - this.street.length * 0.5 - 10,
+      maxX: this.street.centerX + this.street.width  * 0.5 + 10,
+      maxZ: this.street.centerZ + this.street.length * 0.5 + 10,
+    });
+    this._hashIndex = new SpatialHashIndex(6); // 6-unit cells (same as before)
+    this._qtIndex   = new QuadtreeIndex(this._streetBounds(), { capacity: 8, maxDepth: 10 });
+    this.spatialHash = this._hashIndex; // active index (legacy name kept)
+    // Expose spatial stats for debug overlay
+    this.spatialStats = this.spatialHash.stats;
     this.root = new THREE.Group();
     this.root.name = "StreetPedestrians";
     scene.add(this.root);
@@ -325,6 +339,17 @@ export class StreetPedestrians {
 
   setAnimationLODParams(params) {
     this.animLodParams = { ...this.animLodParams, ...params };
+  }
+
+  /** Switch between "hash" and "quadtree" at runtime */
+  setSpatialIndexMode(mode) {
+    this.spatialIndexMode = mode;
+    if (mode === "quadtree") {
+      // Refresh bounds from current street definition before switching
+      this._qtIndex.setBounds(this._streetBounds());
+    }
+    this.spatialHash = mode === "quadtree" ? this._qtIndex : this._hashIndex;
+    this.spatialStats = this.spatialHash.stats;
   }
 
   _build() {
@@ -423,7 +448,9 @@ export class StreetPedestrians {
   update(dt, pyramidPos, houseRects, lightCubeObstacles = []) {
     if (!this.params.enabled || this.agents.length === 0) return;
 
-    // Rebuild spatial hash
+    // Rebuild spatial index (hash or quadtree)
+    this.spatialHash = this.spatialIndexMode === "quadtree" ? this._qtIndex : this._hashIndex;
+    this.spatialStats = this.spatialHash.stats;
     this.spatialHash.clear();
     for (const agent of this.agents) {
       this.spatialHash.insert(agent);
@@ -444,7 +471,7 @@ export class StreetPedestrians {
 
     // Update each agent
     for (const agent of this.agents) {
-      this.spatialHash.getNearInto(agent.pos.x, agent.pos.z, 3, tmpNeighbors);
+      this.spatialHash.queryInto(agent.pos.x, agent.pos.z, 3, tmpNeighbors);
       agent.update(dt, this.agents, tmpNeighbors, bounds, pyramidPos, this.params, lightCubeObstacles);
 
       // Animate humanoid walk cycle using LOD system (if camera available)
