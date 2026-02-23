@@ -1,33 +1,30 @@
-// 📄 src/spacial/heatmapRenderer.js
+
 import * as THREE from "three";
 
-/**
- * Visualizes spatial hash occupancy with colored grid cells
- */
 export class HeatmapRenderer {
   constructor({ cellSize = 20, worldSize = 2000, y = 0.1 } = {}) {
     this.cellSize = cellSize;
     this.worldSize = worldSize;
     this.y = y;
 
-    // Create instanced mesh for cell visualization
+
     const geometry = new THREE.PlaneGeometry(cellSize * 0.9, cellSize * 0.9);
-    geometry.rotateX(-Math.PI / 2); // Lay flat on ground
+    geometry.rotateX(-Math.PI / 2);
 
     const material = new THREE.MeshBasicMaterial({
       transparent: true,
       opacity: 0.6,
       side: THREE.DoubleSide,
-      depthWrite: false, // Prevent z-fighting
+      depthWrite: false,
     });
 
-    // Max cells we might need (conservative estimate)
+  
     const maxCells = 500;
     this.mesh = new THREE.InstancedMesh(geometry, material, maxCells);
     this.mesh.visible = false;
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 
-    // Color array for per-instance colors
+
     this.mesh.instanceColor = new THREE.InstancedBufferAttribute(
       new Float32Array(maxCells * 3),
       3
@@ -52,20 +49,20 @@ export class HeatmapRenderer {
     let instanceIndex = 0;
 
     for (const { key, count } of cells) {
-      // Unpack integer key to cell coords
+
       const { cx, cz } = spatial._unpackKey(key);
 
-      // World position (center of cell)
+
       const x = (cx + 0.5) * this.cellSize;
       const z = (cz + 0.5) * this.cellSize;
 
-      // Set transform
+
       this.dummy.position.set(x, this.y, z);
       this.dummy.updateMatrix();
       this.mesh.setMatrixAt(instanceIndex, this.dummy.matrix);
 
       // Color based on occupancy
-      const t = count / Math.max(maxCount, 10); // normalize
+      const t = count / Math.max(maxCount, 10);
       this.getHeatColor(t, this.color);
       this.mesh.setColorAt(instanceIndex, this.color);
 

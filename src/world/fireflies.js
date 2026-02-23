@@ -1,6 +1,3 @@
-// Fireflies: Floating glowing orbs with wandering behavior
-// Similar to StreetPedestrians but much simpler (just sphere meshes)
-
 import * as THREE from "three";
 
 class Firefly {
@@ -9,8 +6,8 @@ class Firefly {
     this.vel = new THREE.Vector3(0, 0, 0);
     this.acc = new THREE.Vector3(0, 0, 0);
     this.mesh = null;
-    this.maxSpeed = 0.8;  // Significantly faster
-    this.maxForce = 0.4;  // Stronger forces
+    this.maxSpeed = 0.8;
+    this.maxForce = 0.4;
     this.wander = Math.random() * Math.PI * 2;
     this.wobblePhase = Math.random() * Math.PI * 2;
   }
@@ -20,7 +17,7 @@ class Firefly {
   }
 
   update(dt, bounds) {
-    // Apply wander behavior (faster movement)
+
     this.wander += (Math.random() - 0.5) * 0.6;
     const wanderForce = new THREE.Vector3(
       Math.cos(this.wander) * 0.4,
@@ -29,7 +26,7 @@ class Firefly {
     );
     this.applyForce(wanderForce);
 
-    // Gentle upward/downward bobbing
+
     this.wobblePhase += dt * 3.5;
     const bobForce = new THREE.Vector3(
       0,
@@ -38,7 +35,7 @@ class Firefly {
     );
     this.applyForce(bobForce);
 
-    // Boundary avoidance (soft repulsion)
+
     const margin = 5;
     if (this.pos.x < bounds.minX + margin) {
       this.applyForce(new THREE.Vector3(0.3, 0, 0));
@@ -53,22 +50,20 @@ class Firefly {
       this.applyForce(new THREE.Vector3(0, 0, -0.3));
     }
 
-    // Keep altitude HIGH to avoid colliding with people
-    if (this.pos.y < bounds.baseHeight + 8) {  // Fly significantly higher
+
+    if (this.pos.y < bounds.baseHeight + 8) {
       this.applyForce(new THREE.Vector3(0, 0.15, 0));
     }
-    if (this.pos.y > bounds.baseHeight + 20) {  // Don't go too high
+    if (this.pos.y > bounds.baseHeight + 20) {
       this.applyForce(new THREE.Vector3(0, -0.08, 0));
     }
 
     // Limit acceleration
     this.acc.clampLength(0, this.maxForce);
 
-    // Update velocity
+    // Update v and p
     this.vel.addScaledVector(this.acc, dt);
     this.vel.clampLength(0, this.maxSpeed);
-
-    // Update position
     this.pos.addScaledVector(this.vel, dt);
 
     // Update mesh
@@ -76,7 +71,6 @@ class Firefly {
       this.mesh.position.copy(this.pos);
     }
 
-    // Reset acceleration
     this.acc.multiplyScalar(0);
   }
 }
@@ -96,10 +90,10 @@ export class Fireflies {
     this.root.name = "Fireflies";
     scene.add(this.root);
 
-    // Create reusable geometry and material
+
     this.geo = new THREE.SphereGeometry(0.3, 8, 8);
     this.mat = new THREE.MeshStandardMaterial({
-      color: 0xff8800,  // Orange
+      color: 0xff8800,
       emissive: 0xff8800,
       emissiveIntensity: 3.5,
       roughness: 0.5,
@@ -114,7 +108,6 @@ export class Fireflies {
   }
 
   _respawn() {
-    // Clear old fireflies
     for (const ff of this.fireflies) {
       if (ff.mesh) {
         this.root.remove(ff.mesh);
@@ -124,18 +117,17 @@ export class Fireflies {
     }
     this.fireflies = [];
 
-    // Spawn new fireflies
     for (let i = 0; i < this.params.population; i++) {
       const x = this.street.centerX + (Math.random() - 0.5) * this.street.width * 0.9;
       const z = this.street.centerZ + (Math.random() - 0.5) * this.street.length * 0.9;
-      const y = this.street.height + 0.5 + Math.random() * 3;  // Varied height
+      const y = this.street.height + 0.5 + Math.random() * 3;
 
       const ff = new Firefly(x, z, y);
       
-      // Create fresh geometry and material for each firefly
+
       const geo = new THREE.SphereGeometry(0.3, 8, 8);
       const mat = new THREE.MeshStandardMaterial({
-        color: 0xff8800,  // Orange
+        color: 0xff8800,
         emissive: 0xff8800,
         emissiveIntensity: 3.5,
         roughness: 0.5,
@@ -145,8 +137,8 @@ export class Fireflies {
       ff.mesh = new THREE.Mesh(geo, mat);
       ff.mesh.castShadow = true;
       ff.mesh.receiveShadow = true;
-      ff.geo = geo;  // Store for disposal
-      ff.mat = mat;  // Store for disposal
+      ff.geo = geo;
+      ff.mat = mat;
       this.root.add(ff.mesh);
 
       this.fireflies.push(ff);

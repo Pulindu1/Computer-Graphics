@@ -1,6 +1,3 @@
-// Shared colour palette for procedural world generation
-// Keeping consistent aesthetic across street district
-
 export const PALETTE = {
   // Street surfaces
   street: {
@@ -16,7 +13,7 @@ export const PALETTE = {
     grey: 0x999999,
   },
 
-  // Building walls
+  // Walls
   walls: {
     cream: 0xE8D7C3,
     lightGrey: 0xD0D0D0,
@@ -57,7 +54,7 @@ export const PALETTE = {
   },
 };
 
-// Material presets (reusable, no per-frame allocation)
+// Material presets
 export function createMaterialLibrary(textureLoader = null) {
   return {
     street: new THREE.MeshStandardMaterial({

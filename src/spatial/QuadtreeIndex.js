@@ -1,18 +1,4 @@
-// 📄 src/spatial/QuadtreeIndex.js
-/**
- * ISpatialIndex wrapper around Quadtree.
- * Same interface as SpatialHashIndex; drop-in replacement.
- *
- * Usage:
- *   const idx = new QuadtreeIndex({ minX: -400, minZ:-1000, maxX:400, maxZ:1000 });
- *   // per frame:
- *   idx.clear();
- *   agents.forEach(a => idx.insert(a));
- *   agents.forEach(a => {
- *     idx.queryInto(a.pos.x, a.pos.z, separationRadius, tmpOut);
- *     // distance-filter tmpOut here
- *   });
- */
+
 import { ISpatialIndex } from "./ISpatialIndex.js";
 import { Quadtree } from "./Quadtree.js";
 
@@ -30,7 +16,7 @@ export class QuadtreeIndex extends ISpatialIndex {
     this._totalNodesVisited = 0;
   }
 
-  // ── ISpatialIndex ──────────────────────────────────────────────────────────
+  // ISpatialIndex 
 
   clear() {
     const t0 = performance.now();
@@ -47,7 +33,7 @@ export class QuadtreeIndex extends ISpatialIndex {
     this._qt.insert(agent);
     this.stats.buildMs += performance.now() - t0;
 
-    // propagate tree diagnostics after inserts
+
     this.stats.nodeCount = this._qt.stats.nodeCount;
     this.stats.maxDepthReached = this._qt.stats.maxDepthReached;
   }
@@ -64,9 +50,7 @@ export class QuadtreeIndex extends ISpatialIndex {
     return out;
   }
 
-  // ── Convenience ───────────────────────────────────────────────────────────
-
-  /** Update root bounds mid-frame if the world region changed. */
+  // Convenience 
   setBounds(bounds) {
     this._qt.rootBounds = bounds;
   }

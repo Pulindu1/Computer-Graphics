@@ -1,8 +1,4 @@
-/**
- * VegetationSystem.js
- * Manages rocks and stumps - billboarded vegetation objects.
- * Placement follows same rules as trees (grass-only, avoids rivers/streets).
- */
+
 
 import * as THREE from "three";
 import { generateVegetationInstances } from "./vegetationPlacement.js";
@@ -34,9 +30,7 @@ export class VegetationSystem {
     this._query = this._buildQuery();
   }
 
-  /**
-   * Build the terrain query API.
-   */
+
   _buildQuery() {
     const { terrain, river, streets } = this;
     const WALK_INNER = river.riverHalfWidth ?? 56;
@@ -44,10 +38,7 @@ export class VegetationSystem {
 
     return {
       getHeightAt: (x, z) => terrain.heightAt(x, z),
-      
-      /**
-       * Squared slope magnitude via central finite differences.
-       */
+
       getSlopeAt: (x, z, eps = 0.75) => {
         const hL = terrain.heightAt(x - eps, z);
         const hR = terrain.heightAt(x + eps, z);
@@ -80,9 +71,7 @@ export class VegetationSystem {
     };
   }
 
-  /**
-   * Main build: generate placement and create meshes.
-   */
+
   build() {
     const { scene, params } = this;
 
@@ -124,9 +113,7 @@ export class VegetationSystem {
     }
   }
 
-  /**
-   * Update billboarding each frame (face camera).
-   */
+
   update(camera) {
     const rockIndices = getVegetationByType(this.instances, 'rock');
 
@@ -135,16 +122,11 @@ export class VegetationSystem {
     }
   }
 
-  /**
-   * Toggle visibility.
-   */
+
   setVisible(v) {
     if (this._rockMesh) this._rockMesh.visible = v;
   }
 
-  /**
-   * Cleanup.
-   */
   dispose() {
     const { scene } = this;
     

@@ -2,8 +2,7 @@ import * as THREE from "three";
 import { createTerrainSampler } from "./terrainHeight.js";
 import { makeTerrainField } from "./terrainField.js";
 
-// Simple 2D smoothing (box blur) on the height grid.
-// iterations: 2–6 is usually enough
+
 function smoothHeights(heights, protectMask, w, h, iterations = 4, strength = 0.55) {
   const tmp = new Float32Array(heights.length);
 
@@ -14,7 +13,6 @@ function smoothHeights(heights, protectMask, w, h, iterations = 4, strength = 0.
       for (let i = 1; i < w - 1; i++) {
         const idx = j * w + i;
 
-        // Protect river + walkway cores from smoothing
         if (protectMask && protectMask[idx] > 0.65) continue;
 
         let sum = 0;
@@ -42,7 +40,7 @@ export function createTerrain({
   segmentsWidth = 300,
   segmentsLength = 300,
   samplerParams = {},
-  smoothing = { iterations: 5, strength: 0.6 } // tweak here
+  smoothing = { iterations: 5, strength: 0.6 }
 } = {}) {
   
   const { sample } = createTerrainSampler(samplerParams);
@@ -52,19 +50,18 @@ export function createTerrain({
 
   const pos = geo.attributes.position;
 
-  // PlaneGeometry with segments N has (N+1) vertices per side
   const vertsWidth = segmentsWidth + 1;
   const vertsLength = segmentsLength + 1;
   const totalVerts = vertsWidth * vertsLength;
 
-  // Build height grid + masks grid (for colouring)
+
   const heights = new Float32Array(totalVerts);
   const riverMaskGrid = new Float32Array(totalVerts);
   const walkwayMaskGrid = new Float32Array(totalVerts);
 
 
 
-  // Important: PlaneGeometry vertex order is row-major
+
   for (let idx = 0; idx < totalVerts; idx++) {
     const x = pos.getX(idx);
     const z = pos.getZ(idx);
@@ -81,7 +78,7 @@ export function createTerrain({
   }
 
 
-  // Smooth ONLY the heights (masks stay sharp-ish for colouring)
+
   smoothHeights(
   heights,
   protectMask,
@@ -92,18 +89,18 @@ export function createTerrain({
 );
 
 
-  // Create heightAt function early so we can use it for terrain field
+
   const halfWidth = width / 2;
   const halfLength = length / 2;
   const stepWidth = width / segmentsWidth;
   const stepLength = length / segmentsLength;
 
   function heightAt(x, z) {
-    // convert world x,z to grid coords (0..segments)
+
     const fx = (x + halfWidth) / stepWidth;
     const fz = (z + halfLength) / stepLength;
 
-    // clamp inside grid
+
     const x0 = Math.max(0, Math.min(segmentsWidth - 1, Math.floor(fx)));
     const z0 = Math.max(0, Math.min(segmentsLength - 1, Math.floor(fz)));
 
@@ -120,16 +117,16 @@ export function createTerrain({
     const h01 = heights[i01];
     const h11 = heights[i11];
 
-    // bilinear interpolation
+
     const hx0 = h00 * (1 - tx) + h10 * tx;
     const hx1 = h01 * (1 - tx) + h11 * tx;
     return hx0 * (1 - tz) + hx1 * tz;
   }
 
-  // Create terrain field API for slope calculations
+
   const terrainField = makeTerrainField(heightAt);
 
-  // Apply smoothed heights + vertex colours
+
   const colors = new Float32Array(totalVerts * 3);
   const c = new THREE.Color();
 
@@ -144,11 +141,11 @@ export function createTerrain({
 
     pos.setY(idx, heights[idx]);
 
-    // grass variation
+
     const t = (Math.sin((x + z) * 0.015) * 0.5 + 0.5);
     c.copy(grassA).lerp(grassB, t * 0.35);
 
-    // smooth colour blend using masks (from sampler)
+
     const wMask = walkwayMaskGrid[idx];
     const rMask = riverMaskGrid[idx];
 
@@ -173,7 +170,6 @@ export function createTerrain({
   mesh.name = "Terrain";
 
   function masksAt(x, z) {
-    // if you need this later, you can also interpolate masks similarly
     return sample(x, z).masks;
   }
 
@@ -182,9 +178,9 @@ export function createTerrain({
     heightAt,
     masksAt,
     terrainField,
-    sampler: { sample },           // Expose sampler for street district terrain flattening
-    geometry: geo,                  // Expose geometry for street district mesh modification
-    heights,                        // Expose height grid for street flattening
+    sampler: { sample },
+    geometry: geo,
+    heights,
     vertsWidth,
     vertsLength,
   };

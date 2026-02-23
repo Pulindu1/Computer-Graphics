@@ -1,10 +1,3 @@
-// 📄 src/spacial/hashKey.js
-/**
- * Shared spatial hash key utilities.
- * Allocation-free integer key packing for 2D grid coordinates.
- * Matches the key scheme used in orbSwarm/SpatialHash.
- */
-
 /**
  * Convert world coordinate to grid cell coordinate
  * @param {number} x - World x or z coordinate

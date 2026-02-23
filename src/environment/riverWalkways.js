@@ -1,18 +1,16 @@
-// 📄 src/environment/riverWalkways.js
+
 import * as THREE from "three";
 
-/**
- * Creates walkway platforms on either side of the river
- */
+
 export function createRiverWalkways({
   riverCorridor,
-  offsetDistance = 8,  // Distance from river edge to inner walkway edge
-  width = 6,           // Width of walkway
-  segments = 200,      // Number of segments along river length
-  height = 0.1,        // Height above water
-  railHeight = 1.5,    // Height of railings
-  color = 0x888888,    // Platform color
-  railColor = 0x555555, // Rail color
+  offsetDistance = 8,
+  width = 6,
+  segments = 200,
+  height = 0.1,
+  railHeight = 1.5,
+  color = 0x888888,
+  railColor = 0x555555,
 } = {}) {
   const { zMin, zMax, centerX, riverHalfWidth, waterLevel } = riverCorridor;
   
@@ -38,14 +36,14 @@ export function createRiverWalkways({
       2 * dz
     ).normalize();
     
-    // Perpendicular vector in XZ plane (rotate tangent 90° around Y)
+
     const normal = new THREE.Vector3(
       -tangent.z,
       0,
       tangent.x
     ).normalize();
     
-    // Left side (positive normal direction)
+
     const leftInner = riverHalfWidth + offsetDistance;
     const leftOuter = riverHalfWidth + offsetDistance + width;
     
@@ -60,7 +58,7 @@ export function createRiverWalkways({
       z
     ));
     
-    // Right side (negative normal direction)
+
     const rightInner = -(riverHalfWidth + offsetDistance);
     const rightOuter = -(riverHalfWidth + offsetDistance + width);
     
@@ -100,9 +98,7 @@ export function createRiverWalkways({
   return { leftMesh: leftGroup, rightMesh: rightGroup };
 }
 
-/**
- * Builds a mesh from two parallel edge arrays
- */
+
 function buildPlatformMesh(edge1, edge2, color) {
   const vertices = [];
   const indices = [];
@@ -137,9 +133,7 @@ function buildPlatformMesh(edge1, edge2, color) {
   return new THREE.Mesh(geometry, material);
 }
 
-/**
- * Builds railing along an edge
- */
+
 function buildRailing(edge, baseHeight, railHeight, color) {
   const vertices = [];
   const indices = [];
@@ -147,9 +141,7 @@ function buildRailing(edge, baseHeight, railHeight, color) {
   const topHeight = baseHeight + railHeight;
   
   for (let i = 0; i < edge.length; i++) {
-    // Bottom vertex (at platform level)
     vertices.push(edge[i].x, baseHeight, edge[i].z);
-    // Top vertex (at rail height)
     vertices.push(edge[i].x, topHeight, edge[i].z);
   }
   

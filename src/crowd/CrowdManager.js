@@ -1,8 +1,4 @@
-// 📄 src/crowd/CrowdManager.js
 
-/**
- * Manages multiple crowd zones (walkways, plazas, etc.)
- */
 export class CrowdManager {
   constructor() {
     this.zones = [];

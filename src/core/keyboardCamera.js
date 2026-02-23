@@ -1,12 +1,11 @@
-// FPS-style free camera controller for WASD and mouse look
-// Fast, responsive movement like a video game
+
 
 import * as THREE from "three";
 
 export class KeyboardCameraController {
   constructor(camera, speed = 500.0) {
     this.camera = camera;
-    this.speed = speed;  // Units per second - very high for fast traversal
+    this.speed = speed;
     
     this.keys = {
       w: false,
@@ -21,14 +20,14 @@ export class KeyboardCameraController {
       shift: false,
     };
 
-    // Euler angles for camera rotation
+
     this.euler = new THREE.Euler(0, 0, 0, 'YXZ');
     this.quat = new THREE.Quaternion();
     
-    // Mouse movement
+
     this.mouseSensitivity = 0.003;
     
-    // Bind keyboard events
+
     this.onKeyDown = this.onKeyDown.bind(this);
     this.onKeyUp = this.onKeyUp.bind(this);
     this.onMouseMove = this.onMouseMove.bind(this);
@@ -70,14 +69,12 @@ export class KeyboardCameraController {
   }
 
   onMouseMove(e) {
-    // Update euler angles based on mouse movement (only when mouse button is pressed)
-    if (e.buttons !== 1) return;  // Only rotate when left mouse button is held
+    if (e.buttons !== 1) return;
 
     this.euler.setFromQuaternion(this.camera.quaternion);
     this.euler.y -= e.movementX * this.mouseSensitivity;
     this.euler.x -= e.movementY * this.mouseSensitivity;
 
-    // Clamp pitch to prevent flipping
     this.euler.x = Math.max(-Math.PI * 0.5, Math.min(Math.PI * 0.5, this.euler.x));
 
     this.camera.quaternion.setFromEuler(this.euler);
@@ -86,12 +83,10 @@ export class KeyboardCameraController {
   update(dt = 1.0 / 60.0) {
     const distance = this.speed * dt;
 
-    // Get camera forward, right, and up vectors
     const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
     const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion);
     const up = new THREE.Vector3(0, 1, 0);
 
-    // WASD / Arrow keys movement
     if (this.keys.w || this.keys.arrowUp) {
       this.camera.position.addScaledVector(forward, distance);
     }
@@ -105,7 +100,6 @@ export class KeyboardCameraController {
       this.camera.position.addScaledVector(right, distance);
     }
 
-    // Space to go up, Shift to go down
     if (this.keys.space) {
       this.camera.position.addScaledVector(up, distance);
     }

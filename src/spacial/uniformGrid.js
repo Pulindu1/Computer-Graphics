@@ -1,10 +1,4 @@
-// A simple 2D uniform grid (XZ plane) for spatial partitioning.
-// Stores integer IDs (agent indices / obstacle indices) in buckets.
-//
-// Coordinate system:
-// - we discretise x,z into cell coords (cx, cz)
-// - key is a string "cx,cz" (fast enough + simple for now)
-// Later, you can optimise to integer hashing if needed.
+
 
 export class UniformGrid {
   constructor(cellSize = 10) {
@@ -43,8 +37,6 @@ export class UniformGrid {
     return this.buckets.get(this.cellKey(cx, cz)) || null;
   }
 
-  // Returns array of buckets (arrays of ids) around a world position
-  // radiusInCells = 1 => 3x3 neighbourhood
   getNeighbourBuckets(x, z, radiusInCells = 1) {
     const { cx, cz } = this.worldToCell(x, z);
     const out = [];
@@ -58,8 +50,7 @@ export class UniformGrid {
     return out;
   }
 
-  // Useful for debug overlays: get all occupied cells
-  // Returns array of {cx,cz,count}
+
   getOccupiedCells() {
     const cells = [];
     for (const [key, bucket] of this.buckets.entries()) {

@@ -1,8 +1,3 @@
-/*
-  Keeps camera projection + renderer size
-  in sync with browser window resizing.
-  Also handles post-processing composer resizing.
-*/
 
 export function installResizeHandler(camera, renderer) {
   function onResize() {
@@ -27,6 +22,5 @@ export function installResizeHandler(camera, renderer) {
 
   window.addEventListener("resize", onResize);
 
-  // Run once on install to ensure correct initial sizing
   onResize();
 }

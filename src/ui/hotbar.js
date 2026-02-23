@@ -1,13 +1,6 @@
 import * as THREE from "three";
 
-/*
-  Simple right-side hotbar UI.
-  Currently supports:
-  - Spatial grid toggle
-  - Fog intensity control
 
-  Keep UI separate from scene logic.
-*/
 
 export function createHotbar({ debugGrid, scene, dayNightCycle, streetDistrict }) {
   // If reloaded, remove existing bar
@@ -141,7 +134,6 @@ export function createHotbar({ debugGrid, scene, dayNightCycle, streetDistrict }
       scene.fog = null;
       fogLabel.textContent = "Off";
     } else {
-      // Scale fog based on intensity (inverted: higher intensity = more fog = lower far distance)
       const fogFar = maxFar - (maxFar - 200) * intensity;
       const fogNear = maxNear - (maxNear - 50) * intensity;
       
@@ -156,7 +148,6 @@ export function createHotbar({ debugGrid, scene, dayNightCycle, streetDistrict }
     }
   });
 
-  // Bind time slider to day/night cycle
   if (dayNightCycle) {
     const timeSlider = bar.querySelector("#timeSlider");
     const timeLabel = bar.querySelector("#timeLabel");
@@ -178,7 +169,6 @@ export function createHotbar({ debugGrid, scene, dayNightCycle, streetDistrict }
       updateTimeLabel(timeOfDay);
     });
 
-    // Bind preset buttons
     const presets = [
       { id: "presetNight", value: 0.0 },
       { id: "presetDawn", value: 0.25 },
@@ -202,7 +192,6 @@ export function createHotbar({ debugGrid, scene, dayNightCycle, streetDistrict }
     });
   }
 
-  // Bind pedestrians slider
   if (streetDistrict) {
     const pedestriansSlider = bar.querySelector("#pedestriansSlider");
     const pedestriansLabel = bar.querySelector("#pedestriansLabel");
@@ -218,7 +207,7 @@ export function createHotbar({ debugGrid, scene, dayNightCycle, streetDistrict }
       console.warn("[Hotbar] Could not find pedestrians slider elements");
     }
 
-    // Bind fireflies slider
+
     const firefliesSlider = bar.querySelector("#firefliesSlider");
     const firefliesLabel = bar.querySelector("#firefliesLabel");
 

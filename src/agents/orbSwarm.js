@@ -1,4 +1,3 @@
-// 📄 src/agents/orbSwarm.js
 import { ORB_DEFAULTS } from "./orbConfig.js";
 import { Stats } from "../stats.js";
 
@@ -14,7 +13,6 @@ export function createOrbSwarm(river, config = {}) {
   const cfg = { ...ORB_DEFAULTS, ...config };
   const N = cfg.count;
 
-  // State arrays (fast, cache-friendly)
   const z = new Float32Array(N);
   const dx = new Float32Array(N);
   const dxVel = new Float32Array(N);
@@ -74,7 +72,6 @@ export function createOrbSwarm(river, config = {}) {
     );
   }
 
-  // Returns world position without storing x/y arrays (computed on demand)
   function getWorldPosition(i, out) {
     const zz = z[i];
     const cx = river.centerX(zz);
@@ -87,9 +84,9 @@ export function createOrbSwarm(river, config = {}) {
 
   function update(dt, timeSeconds, spatial) {
     const margin = cfg.edgeMargin;
-    const r2 = cfg.separationRadius * cfg.separationRadius; // Precompute radius squared
+    const r2 = cfg.separationRadius * cfg.separationRadius;
 
-    // Build spatial buckets (x,z) for neighbour queries
+
     if (spatial) {
       spatial.clear();
       const tmp = { x: 0, y: 0, z: 0 };
@@ -101,7 +98,7 @@ export function createOrbSwarm(river, config = {}) {
     }
 
     for (let i = 0; i < N; i++) {
-      // forward along z
+
       z[i] += speed[i] * dt;
 
       // despawn/respawn at the far end
@@ -122,8 +119,6 @@ export function createOrbSwarm(river, config = {}) {
 
       dx[i] += dxVel[i] * dt;
 
-      // --- separation (neighbour avoidance) ---
-      // Cache centerX once per agent
       const cx = river.centerX(z[i]);
       const xw = cx + dx[i];
       const zw = z[i];
@@ -131,18 +126,17 @@ export function createOrbSwarm(river, config = {}) {
 
       if (spatial) {
         // O(n×m) spatial hash mode
-        tmpNeighbors.length = 0; // Clear reusable array (no allocation)
+        tmpNeighbors.length = 0;
         spatial.queryInto(xw, zw, cfg.separationRadius, tmpNeighbors);
-        const MAX_NEIGHBORS = 24; // Cap neighbors for predictable performance
+        const MAX_NEIGHBORS = 24;
         let found = 0;
 
         for (let n = 0; n < tmpNeighbors.length; n++) {
           const j = tmpNeighbors[n];
           if (j === i) continue;
 
-          Stats.candidateChecks++; // Track every distance check
+          Stats.candidateChecks++;
 
-          // Cache centerX for neighbor j
           const cxj = river.centerX(z[j]);
           const xj = cxj + dx[j];
           const zj = z[j];
@@ -152,24 +146,21 @@ export function createOrbSwarm(river, config = {}) {
           const dist2 = ddx * ddx + ddz * ddz;
 
           if (dist2 > 0.0001 && dist2 < r2) {
-            Stats.neighborPairs++; // Track actual neighbors within radius
-            // push away laterally (signed) - compute sqrt only once
+            Stats.neighborPairs++;
             const dist = Math.sqrt(dist2);
-            const w = (cfg.separationRadius - dist) / cfg.separationRadius; // 0..1
+            const w = (cfg.separationRadius - dist) / cfg.separationRadius;
             push += (ddx / dist) * w;
             
             found++;
-            if (found >= MAX_NEIGHBORS) break; // Cap neighbors for stable cost
+            if (found >= MAX_NEIGHBORS) break;
           }
         }
       } else {
-        // O(n²) naive mode - check every other agent
         for (let j = 0; j < N; j++) {
           if (j === i) continue;
 
-          Stats.candidateChecks++; // Track every distance check
+          Stats.candidateChecks++;
 
-          // Cache centerX for neighbor j
           const cxj = river.centerX(z[j]);
           const xj = cxj + dx[j];
           const zj = z[j];
@@ -179,10 +170,9 @@ export function createOrbSwarm(river, config = {}) {
           const dist2 = ddx * ddx + ddz * ddz;
 
           if (dist2 > 0.0001 && dist2 < r2) {
-            Stats.neighborPairs++; // Track actual neighbors within radius
-            // push away laterally (signed) - compute sqrt only once
+            Stats.neighborPairs++;
             const dist = Math.sqrt(dist2);
-            const w = (cfg.separationRadius - dist) / cfg.separationRadius; // 0..1
+            const w = (cfg.separationRadius - dist) / cfg.separationRadius;
             push += (ddx / dist) * w;
           }
         }
@@ -190,15 +180,14 @@ export function createOrbSwarm(river, config = {}) {
 
       dxVel[i] += push * cfg.separationStrength * dt;
 
-      // clamp within river edges (in dx space)
       const dxClamped = river.clampDx(dx[i], margin);
       if (dxClamped !== dx[i]) {
         dx[i] = dxClamped;
-        // gentle bounce so it doesn’t stick to wall
+
         dxVel[i] *= -0.35;
       }
 
-      // vertical bob within limits
+
       const bob =
         cfg.hoverBase +
         Math.sin(timeSeconds * cfg.bobFreq + phase[i]) * cfg.hoverAmp;

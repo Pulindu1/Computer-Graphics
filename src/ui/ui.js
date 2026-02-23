@@ -1,19 +1,8 @@
-// 📄 src/ui/ui.js
+
 import { GUI } from "lil-gui";
 import * as THREE from "three";
 import { addTreesFolder } from "./treesFolder.js";
 
-/**
- * Scalable GUI (lil-gui) like the provided exercise:
- * - folders
- * - sliders / toggles
- * - easy to add more later
- *
- * Includes:
- * - Debug: spatial grid toggle
- * - Orbs: agentCount slider, brightness slider
- * - Environment: fog intensity, time of day
- */
 
 export function createUI({
   debugGrid,
@@ -39,14 +28,13 @@ export function createUI({
 } = {}) {
   const gui = new GUI({ title: "Swarm Controls" });
 
-  // Central state object lil-gui binds to
   const params = {
-    // Debug
-    neighborMode: "hash", // "hash" | "naive"
+
+    neighborMode: "hash",
     showSpatialGrid: true,
     showOccupancy: false,
     showQueryCells: false,
-    showQueryProof: false, // 3x3 proof overlay
+    showQueryProof: false,
     selectedAgentId: -1,
     agentNeighborRadius: 10,
     cellSize: 20,
@@ -56,10 +44,8 @@ export function createUI({
     orbBrightness: typeof getBrightness === "function" ? getBrightness() : 2.0,
     
     // People (Crowd)
-    // Max: 600 by river + 250 per street (×2) = 1100 total
     peopleCount: typeof getPeopleCount === "function" ? getPeopleCount() : 40,
     
-    // --- Phase 1: Flow-field & Advanced Crowd ---
     enableFlowField: true,
     enableLanes: true,
     enablePriority: true,
@@ -75,35 +61,31 @@ export function createUI({
     queueWeight: 0.5,
     wanderWeight: 0.3,
     
-    // Stress test modes
+ 
     stressTest: 40,
     
-    // Street Lamps
+
     lampsEnabled: true,
     maxLitLamps: 12,
     shadowRadius: 25.0,
     shadowsEnabled: true,
     debugLampAOI: false,
     
-    // Street Districts
     districtEnabled: true,
     streetPedestriansCount: 250,
     firefliesCount: 100,
     lightCubesEnabled: true,
     
-    // Environment Visibility
     rocksVisible: true,
     blanketVisible: true,
     lightCubesIntensity: 2.5,
     
-    // Street District 2 (separate controls)
     district2Enabled: true,
     streetPedestriansCount2: 250,
     firefliesCount2: 100,
     district2PedestrianAvoidance: 0.6,
     district2PedestrianGroupCohesion: 0.4,
     
-    // Bézier Blanket Canopy
     canopyEnabled: true,
     canopyWaveAmp: 12.0,
     canopyWaveSpeed: 2.5,
@@ -113,12 +95,11 @@ export function createUI({
     canopyOpacity: 0.85,
     canopyShowLattice: false,
     
-    // Environment
     fogIntensity: 0,
-    timeOfDay: 0.5, // 0 = midnight, 0.5 = noon, 1 = midnight
+    timeOfDay: 0.5,
   };
 
-  // --- Folder: Debug ---
+
   const fDebug = gui.addFolder("Debug");
   
   fDebug
@@ -148,13 +129,11 @@ export function createUI({
     .add(params, "showQueryProof")
     .name("3x3 Query Proof");
 
-  // --- Folder: Orbs ---
   const fOrbs = gui.addFolder("Orbs");
   fOrbs
     .add(params, "agentCount", 0, 10000, 50)
     .name("Agent count")
     .onFinishChange((v) => {
-      // rebuild only when user releases slider (prevents constant rebuild)
       if (typeof onSetAgentCount === "function") onSetAgentCount(Math.floor(v));
     });
 
@@ -165,7 +144,6 @@ export function createUI({
       if (typeof onSetBrightness === "function") onSetBrightness(v);
     });
 
-  // --- Folder: People (Crowd) ---
   const fPeople = gui.addFolder("People");
   
   fPeople
@@ -175,7 +153,6 @@ export function createUI({
       if (typeof onSetPeopleCount === "function") onSetPeopleCount(Math.floor(v));
     });
   
-  // Behavior toggles
   fPeople
     .add(params, "crowdSeparation")
     .name("Separation")
@@ -248,10 +225,10 @@ export function createUI({
       }
     });
 
-  // ─────────────────────── Phase 1: Advanced Crowd Controls ──────────────────────
+
   const fCrowdAdv = gui.addFolder("Crowd (Phase 1)");
 
-  // Feature toggles
+
   fCrowdAdv
     .add(params, "enableFlowField")
     .name("Flow-Field")
@@ -276,7 +253,7 @@ export function createUI({
       if (rightWalkway) rightWalkway.enablePriority = v;
     });
 
-  // Weight sliders for Phase 1
+
   fCrowdAdv
     .add(params, "flowWeight", 0, 3, 0.1)
     .name("Flow Weight")
@@ -301,7 +278,7 @@ export function createUI({
       if (rightWalkway) rightWalkway.weights.wander = v;
     });
 
-  // Stress test buttons
+
   fCrowdAdv.add({
     spawn100: () => {
       if (crowdManager) {
@@ -338,7 +315,7 @@ export function createUI({
     }
   }, "spawn2000").name("Spawn 2000 (1000/zone)");
 
-  // Leader spawning
+
   fCrowdAdv.add({
     spawnLeaders: () => {
       if (crowdManager) {
@@ -348,7 +325,7 @@ export function createUI({
     }
   }, "spawnLeaders").name("Add Leaders (2/zone)");
 
-  // Clear all
+
   fCrowdAdv.add({
     clearAll: () => {
       if (crowdManager) {
@@ -359,16 +336,16 @@ export function createUI({
     }
   }, "clearAll").name("🗑️ Clear All");
 
-  // ─────────────────────── Animation LOD System ─────────────────────
+
   const fAnimLOD = gui.addFolder("Animation LOD");
 
-  // Initialize animation LOD params in the params object
+ 
   params.animationLODEnabled = true;
   params.animationMidRate = 4;
   params.animationNearDist = 50;
   params.animationMidDist = 150;
 
-  // Apply initial LOD params to all crowd systems
+
   const initialLodParams = {
     NEAR_IN_SQ: params.animationNearDist * params.animationNearDist,
     NEAR_OUT_SQ: (params.animationNearDist + 20) * (params.animationNearDist + 20),
@@ -388,7 +365,6 @@ export function createUI({
     .onChange((v) => {
       if (leftWalkway) leftWalkway.setAnimationLODEnabled(v);
       if (rightWalkway) rightWalkway.setAnimationLODEnabled(v);
-      // Also set for street pedestrians if available
       if (streetDistrict) streetDistrict.setAnimationLODEnabled(v);
       if (streetDistrict2) streetDistrict2.setAnimationLODEnabled(v);
     });
@@ -430,7 +406,6 @@ export function createUI({
       if (streetDistrict2) streetDistrict2.setAnimationLODParams(lodParams);
     });
 
-  // ─────────────────────── Spatial Index (Quadtree toggle) ──────────────────
   const fSpatial = gui.addFolder("Spatial Index");
   params.spatialIndexMode = "hash"; // "hash" | "quadtree"
 
@@ -444,7 +419,7 @@ export function createUI({
       if (streetDistrict2) streetDistrict2.setSpatialIndexMode(v);
     });
 
-  // ─────────────────────── Spatial Index Debug Overlay ─────────────────────
+
   const statsDisplay = document.createElement("div");
   statsDisplay.id = "crowd-stats";
   statsDisplay.style.cssText = [
@@ -456,14 +431,14 @@ export function createUI({
   ].join(";");
   document.body.appendChild(statsDisplay);
 
-  // Aggregate stats from all crowd systems
+
   window.updateCrowdStats = () => {
-    // Crowd agent counts
+
     const walkL  = leftWalkway  ? leftWalkway.agents.length  : 0;
     const walkR  = rightWalkway ? rightWalkway.agents.length : 0;
     const totalPed = walkL + walkR;
 
-    // Collect spatial stats from all four systems
+
     const sources = [
       leftWalkway  ? leftWalkway.grid.stats    : null,
       rightWalkway ? rightWalkway.grid.stats   : null,
@@ -505,7 +480,7 @@ export function createUI({
     `;
   };
 
-  // --- Folder: Street Lamps ---
+ 
   const fLamps = gui.addFolder("Street Lamps");
   
   fLamps
@@ -554,7 +529,7 @@ export function createUI({
       }
     });
   
-  // Lamp stats display (add to bottom of HUD)
+
   const lampStatsDisplay = document.createElement("div");
   lampStatsDisplay.id = "lamp-stats";
   lampStatsDisplay.style.cssText = "position:fixed; bottom:10px; right:10px; background:rgba(0,0,0,0.7); color:#ff0; font-family:monospace; padding:10px; font-size:12px; z-index:999;";
@@ -572,7 +547,7 @@ export function createUI({
     }
   };
 
-  // --- Folder: Street District (Hill 1) ---
+
   const fDistrict = gui.addFolder("Street District 1");
   
   fDistrict
@@ -591,7 +566,7 @@ export function createUI({
       if (streetDistrict) {
         streetDistrict.setStreetPedestriansPopulation(Math.floor(v));
       }
-      // Also apply to District 2 (same population count for both)
+
       if (streetDistrict2) {
         streetDistrict2.setStreetPedestriansPopulation(Math.floor(v));
       }
@@ -604,7 +579,7 @@ export function createUI({
       if (streetDistrict) {
         streetDistrict.setFirefliesPopulation(Math.floor(v));
       }
-      // Also apply to District 2 (same firefly count for both)
+
       if (streetDistrict2) {
         streetDistrict2.setFirefliesPopulation(Math.floor(v));
       }
@@ -640,7 +615,7 @@ export function createUI({
       }
     });
 
-  // --- Folder: Street District (Hill 2) - Independent Behavior Controls ---
+
   const fDistrict2 = gui.addFolder("Street District 2");
   
   fDistrict2
@@ -652,7 +627,7 @@ export function createUI({
       }
     });
   
-  // Note: Population is controlled by District 1 slider above
+
   fDistrict2
     .add(params, "district2PedestrianAvoidance", 0, 2.0, 0.1)
     .name("Pedestrian Avoidance")
@@ -671,7 +646,6 @@ export function createUI({
       }
     });
 
-  // --- Folder: Bézier Blanket Canopy (Parametric Surface) ---
   const fCanopy = gui.addFolder("Street 2 Canopy");
   
   fCanopy
@@ -733,18 +707,16 @@ export function createUI({
       }
     });
 
-  // --- Folder: Post-Processing (Topic 5: Signal Processing + Aliasing) ---
   const fPost = gui.addFolder("Post-Processing");
   
-  // STEP 7: Add post-processing parameters to params object
-  // Note: Initial values pulled from bloomConfig in main.js
+
   params.enablePost = true;
   params.enableBloom = true;
   params.enableFXAA = true;
-  params.bloomStrength = 0.8;      // Start with tuned "Light Festival" value
-  params.bloomThreshold = 0.3;     // Only bright pixels bloom
-  params.bloomRadius = 0.4;        // Moderate blur spread
-  params.showComparison = false;   // A/B toggle for post vs raw
+  params.bloomStrength = 0.8;
+  params.bloomThreshold = 0.3;
+  params.bloomRadius = 0.4;
+  params.showComparison = false; 
 
   fPost
     .add(params, "enablePost")
@@ -755,7 +727,7 @@ export function createUI({
       }
     });
   
-  // STEP 7: Bloom on/off toggle
+
   fPost
     .add(params, "enableBloom")
     .name("Bloom (Optics Glow)")
@@ -765,7 +737,7 @@ export function createUI({
       }
     });
   
-  // STEP 6: Bloom strength slider (tuned to prevent "washing out")
+
   fPost
     .add(params, "bloomStrength", 0.1, 2.0, 0.1)
     .name("  └ Strength")
@@ -775,7 +747,6 @@ export function createUI({
       }
     });
   
-  // STEP 6: Bloom threshold slider (isolates which regions bloom)
   fPost
     .add(params, "bloomThreshold", 0.0, 1.0, 0.05)
     .name("  └ Threshold")
@@ -785,7 +756,7 @@ export function createUI({
       }
     });
   
-  // STEP 6: Bloom radius slider (blur spread)
+
   fPost
     .add(params, "bloomRadius", 0.1, 1.5, 0.1)
     .name("  └ Radius")
@@ -795,7 +766,6 @@ export function createUI({
       }
     });
   
-  // STEP 7: FXAA anti-aliasing toggle
   fPost
     .add(params, "enableFXAA")
     .name("FXAA Anti-Aliasing")
@@ -805,7 +775,7 @@ export function createUI({
       }
     });
 
-  // STEP 7: Performance comparison note
+
   const postInfoDiv = document.createElement("div");
   postInfoDiv.id = "post-info";
   postInfoDiv.style.cssText = "margin:8px 0; padding:8px; background:rgba(0,100,200,0.2); border-left:3px solid #0099ff; font-size:11px; line-height:1.4;";
@@ -815,12 +785,10 @@ export function createUI({
     • FXAA: Edge-aware reconstruction filter<br>
     <em>Trade-off: Quality vs Performance</em>
   `;
-  // Append to gui controller element (if possible, or just log)
-  
-  // --- Folder: Environment ---
+
   const fEnv = gui.addFolder("Environment");
   
-  // Fog intensity
+
   const maxFar = 900;
   const maxNear = 200;
   
@@ -847,7 +815,7 @@ export function createUI({
       }
     });
 
-  // Time of day
+
   fEnv
     .add(params, "timeOfDay", 0, 1, 0.01)
     .name("Time of day")
@@ -857,7 +825,7 @@ export function createUI({
       }
     });
 
-  // Time presets as buttons (using lil-gui button API)
+
   const presetNight = { preset: () => {
     params.timeOfDay = 0.0;
     if (dayNightCycle) dayNightCycle.setTime(0.0);
@@ -886,21 +854,21 @@ export function createUI({
   }};
   fEnv.add(presetDusk, "preset").name("🌆 Dusk");
 
-  // Optional: keep folders open initially
+
   fDebug.open();
   fOrbs.open();
   fPeople.open();
   fEnv.open();
 
-  // --- Folder: Trees ---
+
   if (treeSystem) {
     addTreesFolder(gui, treeSystem, params);
   }
 
-  // --- Folder: Environment Visibility ---
+
   const envFolder = gui.addFolder("Environment Visibility");
   
-  // Rocks toggle
+
   if (vegetationSystem) {
     envFolder.add(params, "rocksVisible")
       .name("Rocks")
@@ -909,7 +877,6 @@ export function createUI({
       });
   }
   
-  // Bézier blanket toggle
   if (bezierBlanket) {
     envFolder.add(params, "blanketVisible")
       .name("Glowing Blanket")

@@ -1,4 +1,4 @@
-// 📄 src/environment/terrainField.js
+
 
 /**
  * Parametric terrain field API
@@ -11,9 +11,8 @@ export function makeTerrainField(sampleHeightFn) {
     return sampleHeightFn(x, z);
   }
 
-  // Finite difference gradient (enough for marks)
   function gradient(x, z) {
-    const e = 0.5; // small step in world units
+    const e = 0.5;
     const hx1 = height(x + e, z);
     const hx0 = height(x - e, z);
     const hz1 = height(x, z + e);
@@ -26,7 +25,6 @@ export function makeTerrainField(sampleHeightFn) {
   // Slope magnitude (steepness)
   function slope(x, z) {
     const g = gradient(x, z);
-    // slope magnitude = length of gradient vector
     return Math.hypot(g.dhdx, g.dhdz);
   }
 

@@ -11,16 +11,16 @@ class Agent {
     this.vel = new THREE.Vector3(0, 0, 0);
     this.acc = new THREE.Vector3(0, 0, 0);
     this.groupId = groupId;
-    this.isLeader = Math.random() < 0.15;  // 15% leaders
+    this.isLeader = Math.random() < 0.15;
     this.mesh = null;
     this.parts = null;
     this.bodyMat = null;
-    this.mode = 0;  // 0=idle, 1=walk
-    this.meshHeight = 1.0;  // Approximate humanoid height, will be refined
+    this.mode = 0;
+    this.meshHeight = 1.0;
     this.maxSpeed = 0.6;
     this.maxForce = 0.25;
     this.wander = Math.random() * Math.PI * 2;
-    this.animationTime = 0;  // Accumulated animation time for walk cycle
+    this.animationTime = 0;
   }
 
   applyForce(force) {
@@ -28,66 +28,54 @@ class Agent {
   }
 
   update(dt, agents, neighbors, bounds, pyramidPos, preferences, lightCubeObstacles = []) {
-    // Determine animation mode based on velocity (2 states: idle/walk)
     const speed = this.vel.length();
     this.mode = speed < 0.15 ? 0 : 1;
 
-    // Accumulate animation time only when walking
     if (this.mode === 1) {
-      this.animationTime += dt * 0.5;  // Slow walk cycle progression
+      this.animationTime += dt * 0.5;
     }
 
-    // Apply forces
+
     if (this.isLeader) {
-      // Leaders wander and explore
       this._applyWanderBehavior(dt, preferences);
     } else {
-      // Followers track leader
       this._applyFollowBehavior(agents, preferences);
     }
 
-    // Avoid collisions with nearby pedestrians (using preallocated neighbors array)
+
     this._applyAvoidanceForce(neighbors, preferences);
 
-    // Avoid houses (simple rectangular bounds)
+
     this._applyHouseAvoidance(bounds, preferences);
 
-    // Avoid light cubes
+
     if (lightCubeObstacles.length > 0) {
       this._applyLightCubeAvoidance(lightCubeObstacles, preferences);
     }
 
-    // Avoid pyramid
     if (preferences.pyramidAvoidance > 0) {
       this._applyPyramidAvoidance(pyramidPos, preferences);
     }
 
-    // Attraction towards pyramid (look at it, slight pull)
     if (preferences.pyramidAttraction > 0) {
       this._applyAttractionForce(pyramidPos, preferences);
     }
 
-    // Limit acceleration
     this.acc.clampLength(0, this.maxForce);
 
-    // Update velocity
     this.vel.addScaledVector(this.acc, dt);
     this.vel.clampLength(0, this.maxSpeed);
 
-    // Update position
     this.pos.addScaledVector(this.vel, dt);
 
-    // Keep Y at street height (pedestrians always on ground)
     this.pos.y = bounds.baseHeight;
-    this.vel.y = 0;  // No vertical movement allowed
+    this.vel.y = 0;
 
-    // Boundary wrap
     if (this.pos.x < bounds.minX) this.pos.x = bounds.maxX;
     if (this.pos.x > bounds.maxX) this.pos.x = bounds.minX;
     if (this.pos.z < bounds.minZ) this.pos.z = bounds.maxZ;
     if (this.pos.z > bounds.maxZ) this.pos.z = bounds.minZ;
 
-    // Update mesh position (feet on ground) and rotation
     if (this.mesh) {
       this.mesh.position.set(this.pos.x, this.pos.y, this.pos.z);
       if (this.vel.lengthSq() > 0.01) {
@@ -95,7 +83,7 @@ class Agent {
       }
     }
 
-    // Reset acceleration
+
     this.acc.multiplyScalar(0);
   }
 
@@ -110,7 +98,6 @@ class Agent {
   }
 
   _applyFollowBehavior(agents, preferences) {
-    // Find group leader
     const leader = agents.find(a => a.groupId === this.groupId && a.isLeader);
     if (!leader) return;
 
@@ -178,59 +165,53 @@ class Agent {
     const toPyramid = new THREE.Vector3().subVectors(pyramidPos, this.pos);
     const dist = toPyramid.length();
 
-    if (dist < 25) {  // Strict avoidance zone: 25 units
+    if (dist < 25) {
       const away = new THREE.Vector3().subVectors(this.pos, pyramidPos).normalize();
-      away.multiplyScalar((25 - dist) / 25 * preferences.pyramidAvoidance * 2.0);  // Much stronger force
+      away.multiplyScalar((25 - dist) / 25 * preferences.pyramidAvoidance * 2.0);
       this.applyForce(away);
     }
   }
 
   _applyLightCubeAvoidance(obstacles, preferences) {
-    // obstacles is an array of { position, radius }
     if (!obstacles || obstacles.length === 0) return;
 
     for (const obstacle of obstacles) {
       const toObstacle = new THREE.Vector3().subVectors(obstacle.position, this.pos);
       const dist = toObstacle.length();
-      const avoidDist = obstacle.radius + 3;  // Add buffer
+      const avoidDist = obstacle.radius + 3;
 
       if (dist < avoidDist) {
-        // Strong avoidance force pushing away from light cube
         const away = new THREE.Vector3().subVectors(this.pos, obstacle.position).normalize();
-        away.multiplyScalar((avoidDist - dist) / avoidDist * 1.5);  // Medium strength force
+        away.multiplyScalar((avoidDist - dist) / avoidDist * 1.5);
         this.applyForce(away);
       }
     }
   }
 
   _applyAttractionForce(pyramidPos, preferences) {
-    // Only horizontal (XZ) attraction - ignore Y to prevent climbing
     const toAttraction = new THREE.Vector3(
       pyramidPos.x - this.pos.x,
-      0,  // No vertical component
+      0,
       pyramidPos.z - this.pos.z
     );
     const dist = toAttraction.length();
 
-    // Only attract from distance, not too close to avoid climbing
-    if (dist > 5 && dist < 50) {  // Wider attraction range
+    if (dist > 5 && dist < 50) {
       toAttraction.normalize();
-      toAttraction.multiplyScalar(preferences.pyramidAttraction * 0.08);  // Reduced strength
+      toAttraction.multiplyScalar(preferences.pyramidAttraction * 0.08);
       this.applyForce(toAttraction);
     }
   }
 }
 
-// Spatial Hash Grid for efficient neighbor queries
 class SpatialHash {
   constructor(cellSize) {
     this.cellSize = cellSize;
-    this.map = new Map();  // integer key -> agent array
-    this.tmpOut = [];      // Reusable output array for getNearInto
+    this.map = new Map();
+    this.tmpOut = [];
   }
 
   clear() {
-    // Fast clear without re-allocating map
     for (const bucket of this.map.values()) {
       bucket.length = 0;
     }
@@ -247,9 +228,7 @@ class SpatialHash {
     this.map.get(key).push(agent);
   }
 
-  /**
-   * Query into preallocated array (no allocation per call)
-   */
+
   getNearInto(x, z, radius, out) {
     out.length = 0;
     const rCells = Math.ceil(radius / this.cellSize);
@@ -270,9 +249,7 @@ class SpatialHash {
     return out;
   }
 
-  /**
-   * Convenience: getNear returns a new array (for backwards compat, but uses internal buffer)
-   */
+
   getNear(x, z, radius) {
     return this.getNearInto(x, z, radius, this.tmpOut);
   }
@@ -281,7 +258,7 @@ class SpatialHash {
 export class StreetPedestrians {
   constructor({ scene, street, pyramid, params = {} }) {
     this.scene = scene;
-    this.street = street;  // { centerX, centerZ, width, length, height }
+    this.street = street;
     this.pyramid = pyramid;
 
     this.params = {
@@ -305,9 +282,9 @@ export class StreetPedestrians {
       maxX: this.street.centerX + this.street.width  * 0.5 + 10,
       maxZ: this.street.centerZ + this.street.length * 0.5 + 10,
     });
-    this._hashIndex = new SpatialHashIndex(6); // 6-unit cells (same as before)
+    this._hashIndex = new SpatialHashIndex(6);
     this._qtIndex   = new QuadtreeIndex(this._streetBounds(), { capacity: 8, maxDepth: 10 });
-    this.spatialHash = this._hashIndex; // active index (legacy name kept)
+    this.spatialHash = this._hashIndex;
     // Expose spatial stats for debug overlay
     this.spatialStats = this.spatialHash.stats;
     this.root = new THREE.Group();
@@ -315,7 +292,7 @@ export class StreetPedestrians {
     scene.add(this.root);
 
     // Animation LOD system
-    this.camera = null; // Set externally via setCamera()
+    this.camera = null;
     this.animLodEnabled = true;
     this.animLodParams = {
       NEAR_IN_SQ: 15 * 15,   // 15m
@@ -325,7 +302,7 @@ export class StreetPedestrians {
       MID_RATE: 4,           // Every 4 frames
     };
 
-    this._groupLifespans = new Map();  // Track group creation times
+    this._groupLifespans = new Map();
     this._build();
   }
 
@@ -345,7 +322,6 @@ export class StreetPedestrians {
   setSpatialIndexMode(mode) {
     this.spatialIndexMode = mode;
     if (mode === "quadtree") {
-      // Refresh bounds from current street definition before switching
       this._qtIndex.setBounds(this._streetBounds());
     }
     this.spatialHash = mode === "quadtree" ? this._qtIndex : this._hashIndex;
@@ -366,7 +342,7 @@ export class StreetPedestrians {
           agent.mesh.parent.remove(agent.mesh);
         }
         
-        // Dispose all geometries (each mesh has unique geometries)
+        // Dispose all geometries
         if (agent.geometries && agent.geometries.length > 0) {
           for (const geo of agent.geometries) {
             if (geo && geo.dispose) {
@@ -375,7 +351,7 @@ export class StreetPedestrians {
           }
         }
         
-        // Dispose all materials (each mesh now has unique materials)
+        // Dispose all materials
         if (agent.materials && agent.materials.length > 0) {
           for (const mat of agent.materials) {
             if (mat && mat.dispose) {
@@ -418,7 +394,7 @@ export class StreetPedestrians {
       usedPositions.add(key);
       const agent = new Agent(x, z, Math.floor(i / 3), this.street.height);
 
-      // Create humanoid mesh (fresh creation, no cloning)
+      // Create humanoid mesh
       const result = createMiniPersonMesh(0xff69b4);  // Soft pink
       agent.mesh = result.mesh;
       agent.parts = result.parts;
@@ -432,7 +408,7 @@ export class StreetPedestrians {
       agent.mesh.castShadow = true;
       agent.mesh.receiveShadow = true;
       
-      // Add to root - make sure not already added
+      // Add to root
       this.root.add(agent.mesh);
 
       this.agents.push(agent);
@@ -474,7 +450,7 @@ export class StreetPedestrians {
       this.spatialHash.queryInto(agent.pos.x, agent.pos.z, 3, tmpNeighbors);
       agent.update(dt, this.agents, tmpNeighbors, bounds, pyramidPos, this.params, lightCubeObstacles);
 
-      // Animate humanoid walk cycle using LOD system (if camera available)
+      // Animate humanoid walk cycle using LOD
       if (agent.mesh && agent.parts) {
         if (this.camera && this.animLodEnabled) {
           animateHumanoidLOD(agent, agent.animationTime, this.camera.position, this.animLodParams, this.animLodEnabled);
@@ -484,7 +460,7 @@ export class StreetPedestrians {
       }
     }
 
-    // Rebalance groups (re-randomize when group lifespan expires)
+    // Rebalance groups
     const now = Date.now();
     for (const [groupId, createdAt] of this._groupLifespans.entries()) {
       if (now - createdAt > (Math.random() * 20000 + 10000)) {  // 10-30 seconds

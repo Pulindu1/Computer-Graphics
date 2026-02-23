@@ -1,19 +1,11 @@
-/**
- * vegetationMeshes.js
- * Billboarded quad geometry for rocks and stumps.
- * Each quad is a 2D plane that will face the camera.
- */
 
 import * as THREE from "three";
 
-/**
- * Create a billboarded quad geometry.
- * Size is 1x1 by default (scale via instance matrix).
- */
+
 function createBillboardQuad() {
   const geometry = new THREE.BufferGeometry();
   
-  // Quad vertices (centered at origin, facing +Z initially)
+
   const positions = new Float32Array([
     -0.5, -0.5, 0,  // bottom-left
      0.5, -0.5, 0,  // bottom-right
@@ -50,7 +42,7 @@ export function buildVegetationMaterials(textures) {
     roughness: 1.0,
     flatShading: false,
     transparent: true,
-    alphaTest: 0.1,  // Discard pixels with alpha < 0.1 to remove black background
+    alphaTest: 0.1,
   });
   
   return {
@@ -79,9 +71,7 @@ export function createVegetationMeshPair(maxCount, texture, material) {
   return mesh;
 }
 
-/**
- * Filter instances by type.
- */
+
 export function getVegetationByType(instances, type) {
   const indices = [];
   for (let i = 0; i < instances.length; i++) {
@@ -90,10 +80,7 @@ export function getVegetationByType(instances, type) {
   return indices;
 }
 
-/**
- * Apply matrices for vegetation (billboarded quads).
- * Will be updated each frame to face camera.
- */
+
 export function applyVegetationMatrices(instances, indices, mesh, camera) {
   const n = indices.length;
   mesh.count = n;
@@ -105,16 +92,14 @@ export function applyVegetationMatrices(instances, indices, mesh, camera) {
     const inst = instances[indices[i]];
     const pos = new THREE.Vector3(inst.x, inst.y, inst.z);
     
-    // Make quad face camera
+
     cameraDir.subVectors(camera.position, pos).normalize();
     
     dummy.position.copy(pos);
-    // Scale up to make visible (3x larger)
     dummy.scale.set(4.5, 4.5, 1.5);
     
-    // Align to face camera
     dummy.lookAt(camera.position);
-    dummy.rotateZ(inst.rotY * 0.2);  // Slight random tilt
+    dummy.rotateZ(inst.rotY * 0.2);
     
     dummy.updateMatrix();
     mesh.setMatrixAt(i, dummy.matrix);

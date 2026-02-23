@@ -8,7 +8,7 @@ export function initThree() {
     60,
     window.innerWidth / window.innerHeight,
     0.1,
-    8000,  // Increased far plane for better zoom-out rendering
+    8000,
   );
   camera.position.set(0, 110, 220);
 

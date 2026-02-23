@@ -1,6 +1,5 @@
-// 📄 src/perf.js
+// perf.js
 /**
- * Lightweight performance timing utility
  * Use to measure and track hot function execution times
  */
 export const Perf = {
@@ -14,7 +13,7 @@ export const Perf = {
     const t0 = this.marks.get(name);
     if (t0 == null) return 0;
     const dt = performance.now() - t0;
-    this.marks.delete(name); // Clean up
+    this.marks.delete(name);
     return dt;
   }
 };

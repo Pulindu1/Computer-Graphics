@@ -1,25 +1,6 @@
-/**
- * treesFolder.js
- * lil-gui folder for the TreeSystem.
- *
- * Adds a "Trees" folder to an existing GUI with:
- *  - Visibility toggle
- *  - Count slider (triggers full rebuild on release)
- *  - Min Spacing slider
- *  - Max Slope² slider
- *  - River / Street margin sliders
- *  - Wind toggle + Strength + Speed
- *  - LOD toggle
- *  - Debug: show placement points
- *  - Debug: show no-tree zones (river band + street boxes)
- *
- * Sliders that require re-placement call treeSystem.rebuild() on finish.
- * Wind strength/speed update the live uniform without rebuild.
- */
-
 export function addTreesFolder(gui, treeSystem, params) {
 
-  // Extend the shared params with tree defaults
+
   Object.assign(params, {
     treeVisible:       treeSystem.params.visible,
     treeCount:         treeSystem.params.count,
@@ -37,13 +18,13 @@ export function addTreesFolder(gui, treeSystem, params) {
 
   const fTrees = gui.addFolder("Trees");
 
-  // ── Visibility ──────────────────────────────────────────────
+
   fTrees
     .add(params, "treeVisible")
     .name("Visible")
     .onChange(v => treeSystem.setVisible(v));
 
-  // ── Placement ───────────────────────────────────────────────
+
   fTrees
     .add(params, "treeCount", 0, 2000, 50)
     .name("Count")
@@ -84,13 +65,13 @@ export function addTreesFolder(gui, treeSystem, params) {
       treeSystem.rebuild();
     });
 
-  // ── Wind (GPU shader) ────────────────────────────────────────
+
   fTrees
     .add(params, "treeWindEnabled")
     .name("Wind (GPU shader)")
     .onChange(v => {
       treeSystem.params.windEnabled = v;
-      // Requires shader recompile → full rebuild
+
       treeSystem.rebuild();
     });
 
@@ -99,7 +80,7 @@ export function addTreesFolder(gui, treeSystem, params) {
     .name("  └ Wind Strength")
     .onChange(v => {
       treeSystem.params.windStrength = v;
-      // Live update — just write the uniform, no rebuild needed
+
       const u = treeSystem._materials?.leavesUniforms;
       if (u && treeSystem.params.windEnabled) u.uWindStrength.value = v;
     });
@@ -113,7 +94,7 @@ export function addTreesFolder(gui, treeSystem, params) {
       if (u) u.uWindSpeed.value = v;
     });
 
-  // ── LOD ──────────────────────────────────────────────────────
+  // LOD 
   fTrees
     .add(params, "treeLodEnabled")
     .name("3-Tier LOD")
@@ -122,7 +103,7 @@ export function addTreesFolder(gui, treeSystem, params) {
       treeSystem.rebuild();
     });
 
-  // ── Debug ────────────────────────────────────────────────────
+  // Debug
   fTrees
     .add(params, "treeShowPoints")
     .name("Debug: Placement Points")

@@ -1,16 +1,4 @@
-/**
- * treePlacement.js
- * Tree placement using candidate sampling + rejection.
- *
- * Algorithm:
- *  - Sample (x,z) randomly within bounds
- *  - Reject if: inside river corridor, on street, on walkway, slope too steep, height too low
- *  - Reject if too close to another accepted tree (spacing check via spatial grid)
- *  - O(k) per placement where k is a small constant (~9 cells × bucket size)
- *    vs O(n) brute-force — critical for 1000+ trees
- */
 
-// Cell-key for the occupancy grid (no allocation on modern V8 — string template is JIT-optimised)
 function cellKey(cx, cz) {
   return `${cx},${cz}`;
 }
@@ -51,13 +39,12 @@ export function generateTreeInstances(params, terrainQuery) {
   } = params;
 
   const budget   = maxAttempts ?? count * 30;
-  const cellSize = minSpacing;   // grid cell ≈ minSpacing → 3×3 search always sufficient
+  const cellSize = minSpacing;
 
-  // Spatial occupancy grid: Map<"cx,cz" → Array<{x,z}>>
+
   const grid = new Map();
   const out  = [];
 
-  // ---- helpers ----
 
   function isOccupied(x, z) {
     const cx = Math.floor(x / cellSize);
@@ -84,7 +71,6 @@ export function generateTreeInstances(params, terrainQuery) {
     grid.get(key).push({ x, z });
   }
 
-  // ---- sampling loop ----
 
   let attempt = 0;
   while (out.length < count && attempt < budget) {
@@ -93,7 +79,6 @@ export function generateTreeInstances(params, terrainQuery) {
     const x = minX + Math.random() * (maxX - minX);
     const z = minZ + Math.random() * (maxZ - minZ);
 
-    // --- Rejection tests (cheapest first) ---
 
     // 1. River corridor + margin
     if (terrainQuery.isInsideRiver(x, z, riverMargin)) continue;
@@ -104,12 +89,11 @@ export function generateTreeInstances(params, terrainQuery) {
     // 3. Walkway band + margin (optional — query may not expose this)
     if (terrainQuery.isOnWalkway?.(x, z, walkwayMargin)) continue;
 
-    // 4. Slope (squared to avoid sqrt): reject very steep terrain
-    //    getSlopeAt returns ||∇h||² already
+    // 4. Slope (squared to avoid sqrt): reject very steep terrain. getSlopeAt returns ||∇h||²
     const slope2 = terrainQuery.getSlopeAt(x, z);
     if (slope2 > maxSlope2) continue;
 
-    // 5. Height gate — reject very low areas (riverbed, flooded zones)
+    // 5. Height gate, reject very low areas (riverbed, flooded zones)
     const y = terrainQuery.getHeightAt(x, z);
     if (y < minHeight) continue;
 
@@ -122,9 +106,9 @@ export function generateTreeInstances(params, terrainQuery) {
       y,
       z,
       rotY:        Math.random() * Math.PI * 2,
-      scale:       8.0 + Math.random() * 7.0,   // 8.0 – 15.0 (10× world scale)
+      scale:       8.0 + Math.random() * 7.0,
       variantSeed: Math.random(),
-      type:        Math.random() < 0.4 ? 'small' : 'large',  // 40% small, 60% large trees
+      type:        Math.random() < 0.4 ? 'small' : 'large',
     });
     occupy(x, z);
   }

@@ -1,4 +1,3 @@
-// 📄 src/agents/orbLodRenderer.js
 import * as THREE from "three";
 
 function clamp(v, lo, hi) {
@@ -12,7 +11,7 @@ export function createOrbLodRenderer({
 
   // LOD switching distance
   lodDistance = 70,
-  hysteresis = 10, // buffer to prevent flicker/popping
+  hysteresis = 10,
 
   // visual tuning
   nearEmissive = 0x9bd7ff,
@@ -20,11 +19,9 @@ export function createOrbLodRenderer({
   nearEmissiveIntensity = 2.2,
   farEmissiveIntensity = 1.4,
 } = {}) {
-  // Two simple sphere geometries for now
   const nearGeo = new THREE.SphereGeometry(nearRadius, 10, 10);
   const farGeo = new THREE.SphereGeometry(farRadius, 8, 8);
 
-  // “Light ball” look without real lights (fast)
   const nearMat = new THREE.MeshStandardMaterial({
     color: 0xffffff,
     emissive: new THREE.Color(nearEmissive),
@@ -68,14 +65,12 @@ export function createOrbLodRenderer({
     const camPos = camera.position;
 
     for (let i = 0; i < swarm.count; i++) {
-      // world position in tmp.position
       swarm.getWorldPosition(i, tmp.position);
       const dx = tmp.position.x - camPos.x;
       const dy = tmp.position.y - camPos.y;
       const dz = tmp.position.z - camPos.z;
       const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
-      // hysteresis switching
       const wasNear = lodState[i] === 1;
       const enterNear = d < (lodDistance - hysteresis);
       const exitNear = d > (lodDistance + hysteresis);
@@ -85,7 +80,6 @@ export function createOrbLodRenderer({
       if (!wasNear && enterNear) nowNear = true;
       lodState[i] = nowNear ? 1 : 0;
 
-      // set matrices
       tmp.rotation.set(0, 0, 0);
       tmp.scale.setScalar(1);
       tmp.updateMatrix();
@@ -107,8 +101,6 @@ export function createOrbLodRenderer({
   const baseFarIntensity = farEmissiveIntensity;
 
   function setBrightness(mult) {
-    // mult is the UI slider value (0..10)
-    // scale from the baseline so 1.0 keeps your original look
     nearMat.emissiveIntensity = baseNearIntensity * mult;
     farMat.emissiveIntensity = baseFarIntensity * mult;
   }

@@ -1,17 +1,4 @@
-/**
- * treeMeshes.js
- * Tree geometry, materials, instance-matrix helpers.
- *
- * Two material tiers:
- *  - buildTreeMaterials()       – full quality, optional GPU wind shader
- *  - buildSimpleTreeMaterials() – cheap (no wind), used for mid/far LOD
- *
- * Wind technique:
- *  Standard MeshStandardMaterial + onBeforeCompile patch.
- *  A per-instance world-space origin is derived from the instanceMatrix
- *  attribute to give each tree a unique wind phase → spatially coherent sway.
- *  Only ONE uniform (uWindTime) is updated per frame — zero CPU matrix work.
- */
+
 
 import * as THREE from "three";
 
@@ -34,8 +21,7 @@ export function buildTreeMaterials({ windEnabled = true } = {}) {
     metalness: 0.0,
   });
 
-  // Shared uniform objects so the main loop can update uWindTime.value
-  // without triggering material recompile.
+
   const leavesUniforms = {
     uWindTime:     { value: 0.0 },
     uWindStrength: { value: windEnabled ? 0.8 : 0.0 },
@@ -50,12 +36,11 @@ export function buildTreeMaterials({ windEnabled = true } = {}) {
   });
 
   if (windEnabled) {
-    // Unique cache key so this compiled program isn't confused with
-    // unpatched standard materials.
+
     leaves.customProgramCacheKey = () => 'tree-wind-leaves-v1';
 
     leaves.onBeforeCompile = (shader) => {
-      // 1. Inject uniform declarations at the top of the vertex shader.
+
       shader.uniforms.uWindTime     = leavesUniforms.uWindTime;
       shader.uniforms.uWindStrength = leavesUniforms.uWindStrength;
       shader.uniforms.uWindSpeed    = leavesUniforms.uWindSpeed;
@@ -66,11 +51,7 @@ export function buildTreeMaterials({ windEnabled = true } = {}) {
         `uniform float uWindSpeed;\n` +
         shader.vertexShader;
 
-      // 2. After the standard `vec3 transformed = vec3(position)` line,
-      //    displace x/z by a sinusoidal wave.
-      //    The instance's world-space origin (instanceMatrix * origin) is used
-      //    as a spatial phase offset so adjacent trees sway together while
-      //    distant trees are out of phase — looks like a real wind gust.
+
       shader.vertexShader = shader.vertexShader.replace(
         /#include <begin_vertex>/,
         `#include <begin_vertex>
@@ -97,10 +78,7 @@ transformed.z += _sway2 * _windFactor;
   return { trunk, leaves, leavesUniforms: windEnabled ? leavesUniforms : null };
 }
 
-/**
- * Simple (no-wind) materials for mid/far LOD tiers.
- * Slightly darker green to distinguish far trees from near trees.
- */
+
 export function buildSimpleTreeMaterials() {
   return {
     trunk:          new THREE.MeshStandardMaterial({ color: 0x5c3d1e, roughness: 0.9 }),
@@ -151,7 +129,7 @@ export function createTreeMeshPair({
   trunkMesh.castShadow    = true;
   trunkMesh.receiveShadow = true;
   leavesMesh.castShadow   = true;
-  leavesMesh.receiveShadow = false; // Leaves don't need expensive self-shadow
+  leavesMesh.receiveShadow = false;
 
   trunkMesh.instanceMatrix.setUsage(usage);
   leavesMesh.instanceMatrix.setUsage(usage);
@@ -286,11 +264,9 @@ export function applyInstancesSubset(instances, indices, pair) {
 //  Helper functions for matrix writes
 // ─────────────────────────────────────────────────────────────
 
-// Single shared dummy Object3D avoids per-call allocation (JS is single-threaded)
 const _dummy = new THREE.Object3D();
 
 function _writeTrunkMatrix(t, slot, mesh) {
-  // Trunk centred at half its height above ground
   _dummy.position.set(t.x, t.y + 2.0 * t.scale, t.z);
   _dummy.rotation.set(0, t.rotY, 0);
   _dummy.scale.setScalar(t.scale);
@@ -299,7 +275,6 @@ function _writeTrunkMatrix(t, slot, mesh) {
 }
 
 function _writeLeavesMatrix(t, slot, mesh) {
-  // Cone origin is at its base; offset up so base sits atop trunk top
   _dummy.position.set(t.x, t.y + 5.2 * t.scale, t.z);
   _dummy.rotation.set(0, t.rotY, 0);
   _dummy.scale.setScalar(t.scale);

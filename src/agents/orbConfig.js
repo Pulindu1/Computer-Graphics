@@ -1,7 +1,7 @@
-// 📄 src/agents/orbConfig.js
+
 
 export const ORB_DEFAULTS = {
-  count: 250,              // start smaller; later push to 1000+
+  count: 250,
   radius: 0.6,
 
   // forward motion
@@ -9,10 +9,10 @@ export const ORB_DEFAULTS = {
   speedMax: 18,
 
   // lateral swerve within river
-  swerveAmp: 10,           // max dx target magnitude
-  swerveFreq: 0.020,       // affects how quickly target changes along z
-  steerK: 3.5,             // how strongly dx follows dxTarget
-  damping: 0.92,           // dxVel damping (0.85–0.98)
+  swerveAmp: 10,
+  swerveFreq: 0.020,
+  steerK: 3.5,
+  damping: 0.92,
 
   // vertical motion (3D confinement)
   hoverBase: 0.6,
@@ -22,14 +22,14 @@ export const ORB_DEFAULTS = {
   bobFreq: 2.2,
 
   // bounds / behaviour
-  edgeMargin: 2.0,         // keep away from river edge
-  despawnPad: 6.0,         // extra distance beyond zMax before respawn
+  edgeMargin: 2.0,
+  despawnPad: 6.0,
 
   // spawning
-  spawnOffsetMin: 6,       // minimum abs(dx) from centre at spawn
-  spawnOffsetMax: 18,      // maximum abs(dx) from centre at spawn
+  spawnOffsetMin: 6,
+  spawnOffsetMax: 18,
 
   // separation
-  separationRadius: 4.0,     // world-space proximity range (roughly)
-  separationStrength: 18.0,  // how hard they push away
+  separationRadius: 4.0,
+  separationStrength: 18.0,
 };

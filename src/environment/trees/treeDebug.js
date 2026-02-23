@@ -1,17 +1,4 @@
-/**
- * treeDebug.js
- * Optional debug visualisations for the tree placement system.
- *
- * Three overlays (each independently toggleable):
- *  1. showPoints  – a Points mesh with a dot at every accepted tree position
- *     (green, size-attenuated) — proves placement is grass-only, not in river/streets
- *
- *  2. showNoZones – translucent overlays showing the excluded zones:
- *     • Blue strip along the river corridor
- *     • Orange boxes around each street rectangle
- *
- * All overlays are rebuilt by rebuild() and can be toggled without rebuild.
- */
+
 
 import * as THREE from "three";
 
@@ -21,12 +8,12 @@ export class TreeDebug {
     this._riverBand   = null;   // THREE.Mesh (plane strip)
     this._streetBoxes = [];     // THREE.Mesh[]
 
-    // Cached visibility state so rebuild() restores correct visibility
+
     this._showPoints   = false;
     this._showNoZones  = false;
   }
 
-  // ── Build ────────────────────────────────────────────────────
+
 
   /**
    * @param {THREE.Scene} scene
@@ -37,7 +24,7 @@ export class TreeDebug {
   rebuild(scene, instances, streets, river) {
     this.dispose(scene);
 
-    // ── 1. Placement point cloud ─────────────────────────────────
+    //  Placement point cloud
     const ptGeo = new THREE.BufferGeometry();
     const pts   = new Float32Array(instances.length * 3);
     for (let i = 0; i < instances.length; i++) {
@@ -57,10 +44,8 @@ export class TreeDebug {
     this._pointsMesh.visible = this._showPoints;
     scene.add(this._pointsMesh);
 
-    // ── 2a. River exclusion band ─────────────────────────────────
-    // Approximate with a flat wide strip along Z-axis (river meanders but the
-    // approximate band still communicates the exclusion zone clearly).
-    const bandWidth = (river.riverHalfWidth ?? 56) * 2 + 40;  // half-width * 2 + margin * 2
+    // River exclusion band
+    const bandWidth = (river.riverHalfWidth ?? 56) * 2 + 40;
     const bandGeo   = new THREE.PlaneGeometry(bandWidth, 2000, 1, 1);
     bandGeo.rotateX(-Math.PI / 2);
 
@@ -76,12 +61,12 @@ export class TreeDebug {
     this._riverBand.visible = this._showNoZones;
     scene.add(this._riverBand);
 
-    // ── 2b. Street exclusion boxes ───────────────────────────────
+    // Street exclusion boxes
     for (const s of streets) {
       const sGeo = new THREE.BoxGeometry(
-        (s.halfWidth  + 10) * 2,   // halfWidth  + streetMargin
+        (s.halfWidth  + 10) * 2,
         8,
-        (s.halfLength + 10) * 2    // halfLength + streetMargin
+        (s.halfLength + 10) * 2
       );
       const box = new THREE.Mesh(sGeo, new THREE.MeshBasicMaterial({
         color:       0xff8800,
@@ -99,7 +84,7 @@ export class TreeDebug {
     }
   }
 
-  // ── Visibility toggles ───────────────────────────────────────
+  // Visibility toggles
 
   setShowPoints(v) {
     this._showPoints = v;
@@ -112,7 +97,7 @@ export class TreeDebug {
     for (const b of this._streetBoxes) b.visible = v;
   }
 
-  // ── Dispose ──────────────────────────────────────────────────
+  // Dispose
 
   dispose(scene) {
     if (this._pointsMesh) {

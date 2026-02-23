@@ -1,15 +1,10 @@
-// 📄 src/crowd/MiniPersonFactory.js
 import * as THREE from "three";
 
-/**
- * Creates a simple humanoid mesh with articulated parts
- * Based on steering lab humanoid structure
- */
 export function createMiniPersonMesh(baseColorHex = 0x3388ff) {
   console.log("[MiniPersonFactory] Creating mesh with color:", baseColorHex.toString(16));
   const group = new THREE.Group();
   
-  // Materials - create fresh instances for this mesh only (no sharing)
+
   const bodyMat = new THREE.MeshStandardMaterial({
     color: baseColorHex,
     roughness: 0.7,
@@ -22,11 +17,11 @@ export function createMiniPersonMesh(baseColorHex = 0x3388ff) {
     metalness: 0.0,
   });
   
-  // Track all geometries and materials for this mesh
+
   const geometries = [];
   const materials = [bodyMat, skinMat];
   
-  // Scale factor for 12x size (3x bigger than previous 4x)
+
   const scale = 12.0;
   
   // Head
@@ -92,28 +87,25 @@ export function createMiniPersonMesh(baseColorHex = 0x3388ff) {
   return { mesh: group, parts, geometries, materials };
 }
 
-/**
- * Animates a humanoid with walk cycle and turning (based on steering lab)
- */
+
 export function animateHumanoid(agent, time) {
   const { parts, mesh } = agent;
   const speed = agent.vel.length();
   const isWalking = agent.mode === 1 || agent.mode === 2; // MODE_WALK=1, MODE_FAST=2
-  
-  // Face direction of movement with smooth quaternion interpolation (always update if moving)
+
   if (isWalking || speed > 0.001) {
     const targetAngle = Math.atan2(agent.vel.x, agent.vel.z);
     const targetQuat = new THREE.Quaternion().setFromAxisAngle(
       new THREE.Vector3(0, 1, 0), 
       targetAngle
     );
-    mesh.quaternion.slerp(targetQuat, 0.2); // Smooth turning
+    mesh.quaternion.slerp(targetQuat, 0.2);
   }
   
   // Walk cycle animation: animate whenever in WALK or FAST mode
   if (isWalking) {
     // Base frequency at 2 Hz, scales with speed
-    const walkFreq = 2.0 + speed * 5.0; // Slower walks = ~2 Hz, faster = scales up
+    const walkFreq = 2.0 + speed * 5.0;
     const phase = time * walkFreq;
     
     // Leg swing (alternating)

@@ -1,3 +1,5 @@
+// main.js
+
 import * as THREE from "three";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
@@ -36,18 +38,18 @@ import { Perf } from "./perf.js";
 const { scene, camera, renderer, controls } = initThree();
 installResizeHandler(camera, renderer);
 
-// --- Post-Processing Pipeline (Topic 5: Signal Processing + Aliasing) ---
+// Post-Processing Pipeline
 let composer, renderPass, bloomPass, fxaaPass;
 let enablePost = false;  // Temporarily disabled to debug white screen
 let enableBloom = true;
 let enableFXAA = true;
 let useMSAA = false;
 
-// STEP 6: Bloom parameters tuned for "Light Festival" aesthetic
+
 const bloomConfig = {
-  strength: 0.8,   // How much bloom contributes (0.6-1.2 sweet spot)
-  radius: 0.4,     // Blur spread (0.3-0.8, lower = tighter glow)
-  threshold: 0.3   // Only pixels brighter than this bloom (0.2-0.5)
+  strength: 0.8,
+  radius: 0.4,
+  threshold: 0.3
 };
 
 function createComposer(scene, camera) {
@@ -56,24 +58,21 @@ function createComposer(scene, camera) {
     composer.setSize(window.innerWidth, window.innerHeight);
     composer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-    // RenderPass: base scene rendering
     renderPass = new RenderPass(scene, camera);
-    renderPass.clearColor = new THREE.Color(0x1a1a2e);  // Dark background
+    renderPass.clearColor = new THREE.Color(0x1a1a2e);
     composer.addPass(renderPass);
 
-    // UnrealBloomPass: bright-pass + blur for optics simulation
-    // STEP 6: Tuned parameters to avoid "washing out" the scene
+
     bloomPass = new UnrealBloomPass(
       new THREE.Vector2(window.innerWidth, window.innerHeight),
-      bloomConfig.strength,    // strength
-      bloomConfig.radius,      // radius (gaussian blur)
-      bloomConfig.threshold    // threshold (isolates bright lanterns/pyramid/fireflies)
+      bloomConfig.strength,
+      bloomConfig.radius,
+      bloomConfig.threshold
     );
     bloomPass.enabled = enableBloom;
     composer.addPass(bloomPass);
 
-    // FXAAShader Pass: screen-space anti-aliasing
-    // Performs edge detection + blending to reduce spatial aliasing
+
     fxaaPass = new ShaderPass(FXAAShader);
     fxaaPass.enabled = enableFXAA;
     composer.addPass(fxaaPass);
@@ -84,7 +83,7 @@ function createComposer(scene, camera) {
     console.log("[Post-Processing] Composer initialized with Bloom + FXAA");
   } catch (e) {
     console.error("[Post-Processing] Failed to initialize composer:", e);
-    enablePost = false;  // Fallback to direct rendering
+    enablePost = false;
   }
 }
 
@@ -105,7 +104,7 @@ function applyPostToggles() {
   fxaaPass.enabled = enableFXAA;
 }
 
-// Expose post-processing controls to UI
+
 window.postProcessingAPI = {
   setEnablePost: (v) => { enablePost = v; },
   setEnableBloom: (v) => { enableBloom = v; applyPostToggles(); },
@@ -124,7 +123,7 @@ window.postProcessingAPI = {
   }
 };
 
-// Handle composer resizing on window resize
+
 window.updateComposerSize = () => {
   if (!composer) return;
   
@@ -132,42 +131,26 @@ window.updateComposerSize = () => {
   const height = window.innerHeight;
   const pixelRatio = Math.min(window.devicePixelRatio, 2);
   
-  // STEP 5: Resize composer and all passes
+
   composer.setSize(width, height);
   composer.setPixelRatio(pixelRatio);
   
-  // Critical: FXAA needs new resolution uniform when window resizes
+
   updateFXAAResolution();
   
   console.log(`[Post-Processing] Resized to ${width}x${height} @ ${pixelRatio}px`);
 };
 
 
-// --- Keyboard Camera Controller ---
-const keyboardCamera = new KeyboardCameraController(camera, 500);  // Speed: 500 units/sec for fast traversal
+// Keyboard Camera Controller
+const keyboardCamera = new KeyboardCameraController(camera, 500);
 
-// --- Day/Night Cycle ---
+
 const dayNightCycle = new DayNightCycle(scene, renderer);
-
-// --- Scene dressing (light/fog/background) ---
-// Note: Background and some lights are now controlled by dayNightCycle
-// scene.background = new THREE.Color(0x1b2133);
-
-// Fog (starts disabled, controlled via hotbar)
 scene.fog = null;
-
-// Note: Hemisphere and directional lights are now managed by DayNightCycle
-// const hemi = new THREE.HemisphereLight(0xbfd7ff, 0x2a3b1f, 0.65);
-// scene.add(hemi);
-
-// const sun = new THREE.DirectionalLight(0xffffff, 0.9);
-// sun.position.set(120, 180, 80);
-// sun.castShadow = false;
-// scene.add(sun);
-
 const WATER_LEVEL = -6;
 
-// --- Procedural grass hill terrain ---
+// Procedural grass hill
 let terrain = null;
 const terrainConfig = {
   width: 800,
@@ -192,12 +175,12 @@ function rebuildTerrain() {
   scene.add(terrain.mesh);
 }
 
-rebuildTerrain(); // Initial build
+rebuildTerrain();
 
-// --- Water surface (UV scrolling) ---
+// water surface
 const water = createWater({
   width: 800,
-  length: 2000,  // Match terrain length
+  length: 2000,
   samplerParams: {
     riverHalfWidth: 56,
     riverMeanderAmp: 55,
@@ -210,27 +193,27 @@ const water = createWater({
 });
 scene.add(water.mesh);
 
-// --- River corridor + Orb swarm ---
+
 const river = makeRiverCorridor({
   width: 800,
   length: 2000,
   waterLevel: -6,
-  riverHalfWidth: 56,  // Fixed: was 400, should be 56 to match terrain/water
+  riverHalfWidth: 56,
   riverMeanderAmp: 55,
   riverMeanderWavelength: 140,
   seedishOffset: 13.37
 });
 
-// --- River walkways ---
+// River walkways 
 const walkways = createRiverWalkways({
   riverCorridor: river,
-  offsetDistance: 5,   // Closer to river edge
-  width: 20,           // Platform width
+  offsetDistance: 5,
+  width: 20,
   segments: 200,
-  height: 5,        // Raised to where rail tops currently are
-  railHeight: 1.2,     // Railing height
-  color: 0x333333,     // Solid dark grey for visibility
-  railColor: 0x111111, // Even darker rail color
+  height: 5,
+  railHeight: 1.2,
+  color: 0x333333,
+  railColor: 0x111111,
 });
 scene.add(walkways.leftMesh);
 scene.add(walkways.rightMesh);
@@ -249,8 +232,8 @@ const crowdManager = new CrowdManager();
 const leftWalkway = new WalkwayZone({
   scene: scene,
   curve: walkwayCurves.leftCurve,
-  corridorWidth: 8,  // Narrow path - only 2-3 people can pass
-  laneOffsets: [-2, 0, 2], // Three tight lanes
+  corridorWidth: 8,
+  laneOffsets: [-2, 0, 2], 
   yOffset: 0.15,
   lookAheadT: 0.01,
   neighborRadius: 3.0,
@@ -274,11 +257,11 @@ const rightWalkway = new WalkwayZone({
 crowdManager.addZone(leftWalkway);
 crowdManager.addZone(rightWalkway);
 
-// Spawn initial crowd
+// initial crowd
 leftWalkway.spawn(20);
 rightWalkway.spawn(20);
 
-// --- Street Lamp System ---
+// Lamps
 const streetLamps = new StreetLampSystem({
   scene: scene,
   walkwayA: walkwayCurves.leftCurve,
@@ -286,48 +269,44 @@ const streetLamps = new StreetLampSystem({
   terrainHeightAt: terrain.heightAt,
   riverCenterX: river.centerX,
   riverHalfWidth: river.halfWidth,
-  platformHeight: 5.0, // Match the walkway platform height
+  platformHeight: 5.0,
 });
 
-// --- Street District: procedural hilltop street with houses ---
+// Durham street
 const streetDistrict = new StreetDistrict({
   scene: scene,
   terrain: terrain,
   params: {
-    centerX: 350,    // Further out on hilltop plateau (towards world edge for true peak)
-    centerZ: 200,    // Hilltop center Z (along walkway direction)
-    streetWidth: 50,  // Much larger platform
-    streetLength: 300,  // Half the hill length
+    centerX: 350,
+    centerZ: 200,
+    streetWidth: 50,
+    streetLength: 300,
     shoulderWidth: 40,
     enabled: true,
-    skipLightCubes: true,  // Only light cubes on Street 2
+    skipLightCubes: true,
   },
 });
 streetDistrict.generate();
 
-// --- Street District 2: duplicate street on opposite side ---
+// Durham street 2
 const streetDistrict2 = new StreetDistrict({
   scene: scene,
   terrain: terrain,
   params: {
-    centerX: -350,   // Mirrored on opposite side
-    centerZ: 200,    // Same Z position
-    streetWidth: 50,  // Same dimensions
+    centerX: -350,
+    centerZ: 200,
+    streetWidth: 50,
     streetLength: 300,
     shoulderWidth: 40,
     enabled: true,
-    mirrorHouses: true,   // Flip houses to opposite side with windows/doors facing other way
-    flipHouseSide: true,  // Place houses on opposite side of the road (closer to map edge)
-    skipPyramid: true,    // No pyramid for street 2
+    mirrorHouses: true,
+    flipHouseSide: true,
+    skipPyramid: true,
   },
 });
 streetDistrict2.generate();
 
-// --- Tree System (procedural grass-only placement, instanced LOD + GPU wind) ---
-// Street configs drive the exclusion zones (trees won't spawn on road/pavement).
-// halfWidth/halfLength must match streetDistrict params exactly:
-// StreetDistrict uses streetWidth as halfWidth → PlaneGeometry(streetWidth*2, streetLength*2)
-// streetWidth:50, streetLength:300 → halfWidth:50, halfLength:300
+
 const STREET_CONFIGS = [
   { centerX:  350, centerZ: 200, halfWidth: 50, halfLength: 300 },
   { centerX: -350, centerZ: 200, halfWidth: 50, halfLength: 300 },
@@ -341,7 +320,7 @@ const treeSystem = new TreeSystem({
 });
 treeSystem.build();
 
-// --- Vegetation System (Rocks & Stumps) ---
+// Billboarded Rocks & Stumps
 const vegetationSystem = new VegetationSystem({
   scene,
   terrain,
@@ -356,36 +335,36 @@ vegetationSystem.build();
 // tangent: (0, 0, 1) - along street Z direction
 // normal: (-1, 0, 0) - perpendicular, pointing toward river
 const street2Center = new THREE.Vector3(-350, streetDistrict2.params.streetMeshHeight, 200);
-const street2Tangent = new THREE.Vector3(0, 0, 1);  // Along street
-const street2Normal = new THREE.Vector3(-1, 0, 0);  // Across street (toward river side)
+const street2Tangent = new THREE.Vector3(0, 0, 1);
+const street2Normal = new THREE.Vector3(-1, 0, 0);
 
 const bezierBlanket = new BezierBlanket({
   scene: scene,
   center: street2Center,
   tangent: street2Tangent,
   normal: street2Normal,
-  width: 100,      // Across street
-  length: 600,     // Along street
-  height: 60,      // Height above street surface (dramatic height)
-  segU: 40,        // Resolution across
-  segV: 120,       // Resolution along
+  width: 100,
+  length: 600,
+  height: 60,
+  segU: 40,
+  segV: 120,
 });
 
-// Configure for SUPER dramatic wave show
+
 bezierBlanket.setParams({
-  waveAmp: 12.0,     // MASSIVE waves
-  waveSpeed: 2.5,    // Very fast movement
-  waveLen: 6.0,      // Even shorter wavelength = dense ripples
-  drapeAmp: 8.0,     // Maximum sag at rest
-  emissiveIntensity: 3.5,  // Very bright glow
+  waveAmp: 12.0,
+  waveSpeed: 2.5,
+  waveLen: 6.0,
+  drapeAmp: 8.0,
+  emissiveIntensity: 3.5,
 });
 
-// Enable shadows for lighting to work - optimized for performance
+
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFShadowMap;  // Cheaper than PCFSoftShadowMap for point lights
+renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.shadowMap.autoUpdate = true;
 
-// Walkway platforms should receive shadows
+
 walkways.leftMesh.receiveShadow = true;
 walkways.rightMesh.receiveShadow = true;
 
@@ -395,10 +374,8 @@ let orbLOD = null;
 let heatmap = null;
 let queryCellOverlay = null;
 
-// --- Focus agent highlight for 3x3 Query Proof ---
 let focusAgentMarker = null;
 
-// keep track of brightness so rebuild preserves it
 let orbBrightness = 1.0;
 
 function disposeInstancedMesh(m) {
@@ -408,7 +385,6 @@ function disposeInstancedMesh(m) {
 }
 
 function rebuildOrbs(agentCount) {
-  // remove old
   if (orbLOD) {
     scene.remove(orbLOD.nearMesh);
     scene.remove(orbLOD.farMesh);
@@ -416,13 +392,10 @@ function rebuildOrbs(agentCount) {
     disposeInstancedMesh(orbLOD.farMesh);
   }
 
-  // (re)create simulation + spatial + renderer
   swarm = createOrbSwarm(river, { count: agentCount });
-  // Match cell size to neighbor radius for optimal bucketing
-  const cellSize = ORB_DEFAULTS.separationRadius * 1.25; // slightly larger
+  const cellSize = ORB_DEFAULTS.separationRadius * 1.25;
   spatial = new SpatialHash(cellSize);
   
-  // Update visualizations to match spatial hash cell size (if they exist)
   if (heatmap) {
     heatmap.cellSize = cellSize;
     heatmap.updateGeometry();
@@ -438,44 +411,41 @@ function rebuildOrbs(agentCount) {
     hysteresis: 10,
   });
 
-  // apply current brightness setting
   orbLOD.setBrightness(orbBrightness);
 
   scene.add(orbLOD.nearMesh);
   scene.add(orbLOD.farMesh);
 }
 
-rebuildOrbs(300); // initial count
+rebuildOrbs(300);
 
-// --- Initialize Post-Processing Pipeline (Bloom + FXAA) ---
+
 createComposer(scene, camera);
 
-// --- Spatial grid (for later agents/obstacles) ---
-const grid = new UniformGrid(20); // cellSize in world units
-// Debug overlay to visualise discretisation
+// Spatial grid
+const grid = new UniformGrid(20); 
 const debugGrid = new DebugGridRenderer({
-  worldSize: 2000, // Match longest dimension
+  worldSize: 2000,
   cellSize: grid.cellSize,
   y: 0.06,
 });
 scene.add(debugGrid.object3d);
 
-// Heatmap occupancy visualization
 heatmap = new HeatmapRenderer({
   cellSize: 20,
   worldSize: 2000,
-  y: 0.08, // Slightly above debug grid
+  y: 0.08,
 });
 scene.add(heatmap.mesh);
 
-// Query cell overlay (shows which cells are being queried)
+
 queryCellOverlay = new QueryCellOverlay({
   cellSize: 20,
-  y: 0.09, // Above heatmap
+  y: 0.09,
 });
 scene.add(queryCellOverlay.mesh);
 
-// create lil-gui UI for all controls
+
 const { gui, params } = createUI({
   debugGrid,
   heatmap,
@@ -491,7 +461,7 @@ const { gui, params } = createUI({
     if (orbLOD) orbLOD.setBrightness(orbBrightness);
   },
   
-  // Crowd controls
+
   crowdManager,
   leftWalkway,
   rightWalkway,
@@ -500,66 +470,57 @@ const { gui, params } = createUI({
     const current = crowdManager.getAgentCount();
     const diff = n - current;
     if (diff > 0) {
-      // Spawn evenly on both walkways
+
       leftWalkway.spawn(Math.ceil(diff / 2));
       rightWalkway.spawn(Math.floor(diff / 2));
     } else if (diff < 0) {
-      // Remove evenly from both walkways
+
       leftWalkway.remove(Math.ceil(-diff / 2));
       rightWalkway.remove(Math.floor(-diff / 2));
     }
   },
   
-  // Street lamps
+
   streetLamps,
   
-  // Street districts
   streetDistrict,
   streetDistrict2,
   
-  // Parametric elements
   bezierBlanket,
 
-  // Tree system
   treeSystem,
   
-  // Vegetation system
   vegetationSystem,
 });
 
-// Initialize animation LOD cameras for crowd systems
+
 leftWalkway.setCamera(camera);
 rightWalkway.setCamera(camera);
 streetDistrict.setCamera(camera);
 streetDistrict2.setCamera(camera);
 
-// Quick sanity inserts (dummy points)
+
 grid.clear();
 grid.insert(0, 0, 0);
 grid.insert(1, 50, 50);
 grid.insert(2, -120, 80);
 console.log("Occupied cells:", grid.getOccupiedCells());
 
-// (optional test) log height at origin
+
 console.log("Height at (0,0):", terrain.heightAt(0, 0));
 
-// --- Debug sphere to test terrain height sampling ---
-// const debugSphereGeo = new THREE.SphereGeometry(4, 16, 16);
-// const debugSphereMat = new THREE.MeshStandardMaterial({ color: 0xff3333 });
-// const debugSphere = new THREE.Mesh(debugSphereGeo, debugSphereMat);
-// scene.add(debugSphere);
-// let angle = 0;
-// const radius = 150;
 
-// --- A subtle “horizon” reference (optional) ---
-// Note: GridHelper uses size (not width/length), so using max dimension
+
+
+
+
 const gridHelper = new THREE.GridHelper(2000, 100, 0x2c3350, 0x2c3350);
 gridHelper.position.y = 0.02;
 gridHelper.material.transparent = true;
 gridHelper.material.opacity = 0.15;
 scene.add(gridHelper);
 
-// --- Stats Display ---
+// Stats 
 const statsElement = document.getElementById('stats');
 let frameCount = 0;
 let lastTime = performance.now();
@@ -580,7 +541,6 @@ function updateStatsDisplay() {
   
   const elapsed = currentTime - lastTime;
   
-  // Update every 500ms
   if (elapsed >= 500) {
     Stats.fps = Math.round((frameCount * 1000) / elapsed);
     
@@ -593,50 +553,48 @@ function updateStatsDisplay() {
   }
 }
 
-// --- Animation loop ---
+// Animation loop 
 const clock = new THREE.Clock();
 
 function animate() {
-  //this is where it should actually be for example.
+
   requestAnimationFrame(animate);
 
-  // Reset stats at start of frame
+
   Stats.resetPerFrame();
 
   const dt = Math.min(clock.getDelta(), 0.033);
   const t = clock.elapsedTime;
   
-  // Reset query tracking for spatial hash
+
   if (spatial) {
     spatial.resetQueryTracking();
   }
 
-  // Controls damping requires update each frame
+
   controls.update();
-  keyboardCamera.update(dt);  // Update keyboard camera movement
+  keyboardCamera.update(dt);
   water.update(dt);
   
-  // Update crowd simulation
+
   crowdManager.update(dt, t);
   
-  // Update street districts (LOD updates + light festival animation)
+
   streetDistrict.update(camera, t);
   streetDistrict2.update(camera, t);
   
-  // Update Bézier blanket canopy animation
+
   bezierBlanket.update(dt);
   
-  // Update street lamps (light pool + shadow LOD)
+
   streetLamps.update(camera);
 
-  // Update tree system (wind uniforms + LOD bucket redistribution every 0.25s)
+
   treeSystem.update(camera, dt);
   
-  // Update vegetation system (billboarding - face camera)
+
   vegetationSystem.update(camera);
   
-  // update swarm (movement + separation)
-  // Pass spatial hash only if mode is "hash", otherwise pass null for naive O(n²) mode
   const spatialToUse = params.neighborMode === "hash" ? spatial : null;
   if (swarm) {
     Perf.begin("swarm");
@@ -644,7 +602,7 @@ function animate() {
     swarmMs = Perf.end("swarm");
   }
   
-  // Update heatmap visualization
+
   heatmap.mesh.visible = params.showOccupancy;
   if (params.showOccupancy && spatial) {
     Perf.begin("heatmap");
@@ -654,8 +612,7 @@ function animate() {
     heatmapMs = 0;
   }
   
-  // --- Query Cell Overlay Logic ---
-  // Normal: show all queried cells
+
   if (params.showQueryCells && params.neighborMode === "hash") {
     queryCellOverlay.mesh.visible = true;
     if (focusAgentMarker) focusAgentMarker.visible = false;
@@ -663,10 +620,10 @@ function animate() {
       const keys = Array.from(spatial.allQueryKeys);
       queryCellOverlay.updateFromKeys(keys, spatial);
     }
-  // 3x3 Query Proof: highlight a focus agent and its 3x3 neighborhood
+
   } else if (params.showQueryProof && params.neighborMode === "hash" && swarm && spatial && river && typeof river.centerX === "function" && swarm.z && swarm.dx && typeof swarm.z.length === "number" && typeof swarm.dx.length === "number") {
     queryCellOverlay.mesh.visible = true;
-    // Cap the number of agents checked to avoid freeze
+
     const MAX_CHECK = Math.min(swarm.count || 0, 1000);
     let focusIdx = -1;
     let minDist = Infinity;
@@ -699,7 +656,7 @@ function animate() {
     }
     queryCellOverlay.updateFromKeys(keys, spatial);
 
-    // --- Highlight the focus agent visually ---
+
     if (!focusAgentMarker) {
       const sphereGeo = new THREE.SphereGeometry(2.2, 20, 20);
       const sphereMat = new THREE.MeshBasicMaterial({ color: 0xff00ff, emissive: 0xff00ff, transparent: true, opacity: 0.85 });
@@ -718,31 +675,21 @@ function animate() {
     if (focusAgentMarker) focusAgentMarker.visible = false;
   }
   
-  // update instance transforms with LOD switching
+
   if (orbLOD) {
     Perf.begin("lod");
     orbLOD.updateInstances(swarm, camera);
     lodMs = Perf.end("lod");
   }
 
-  // Move debug sphere in a circle and sample terrain height
-  //   angle += dt * 0.5;
-  //   const x = Math.cos(angle) * radius;
-  //   const z = Math.sin(angle) * radius;
-  //   const y = terrain.heightAt(x, z);
-  //   debugSphere.position.set(x, y + 4, z); // +4 so the sphere sits on top of ground (its radius)
 
-  // If later you want “wind” motion, you can re-displace terrain here.
-  // Keep it static for now (cheaper + stable base).
-
-  // Render with post-processing pipeline (Bloom + FXAA)
   if (enablePost && composer) {
     composer.render();
   } else {
     renderer.render(scene, camera);
   }
   
-  // Update stats displays
+
   updateStatsDisplay();
   if (window.updateCrowdStats) window.updateCrowdStats();
   if (window.updateLampStats) window.updateLampStats();

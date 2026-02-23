@@ -1,4 +1,3 @@
-// 📄 src/agents/orbRenderer.js
 import * as THREE from "three";
 
 export function createOrbRenderer({
@@ -7,7 +6,7 @@ export function createOrbRenderer({
 } = {}) {
   const geo = new THREE.SphereGeometry(radius, 8, 8);
 
-  // Emissive “light ball” without real lights (fast)
+  // Emissive “light ball” without real lights
   const mat = new THREE.MeshStandardMaterial({
     color: 0xffffff,
     emissive: new THREE.Color(0x9bd7ff),
@@ -27,7 +26,6 @@ export function createOrbRenderer({
       const p = swarm.getWorldPosition(i, tmpObj.position);
       tmpObj.position.set(p.x, p.y, p.z);
 
-      // optional: tiny scale variation based on i
       tmpObj.scale.setScalar(1.0);
 
       tmpObj.rotation.set(0, 0, 0);

@@ -1,12 +1,6 @@
 import * as THREE from "three";
 
-/*
-  Debug overlay renderer for a uniform grid.
-  Draws a world-space grid on XZ plane.
 
-  - worldSize: how wide/tall the grid overlay is (in world units)
-  - cellSize: should match UniformGrid.cellSize
-*/
 
 export class DebugGridRenderer {
   constructor({ worldSize = 800, cellSize = 10, y = 0.05 } = {}) {
@@ -24,13 +18,13 @@ export class DebugGridRenderer {
 
     const positions = [];
 
-    // Lines parallel to Z (vary x)
+
     for (let x = -half; x <= half; x += step) {
       positions.push(x, this.y, -half);
       positions.push(x, this.y, half);
     }
 
-    // Lines parallel to X (vary z)
+
     for (let z = -half; z <= half; z += step) {
       positions.push(-half, this.y, z);
       positions.push(half, this.y, z);

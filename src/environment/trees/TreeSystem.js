@@ -1,22 +1,4 @@
-/**
- * TreeSystem.js
- * Main orchestrator for the procedural tree system.
- *
- * Responsibilities:
- *  - Builds a terrainQuery API from the terrain, river, and street data
- *  - Calls generateTreeInstances() to produce grass-only placement
- *  - Creates full-quality materials (with optional GPU wind shader)
- *  - Delegates rendering to TreeLodBuckets (3-tier LOD) or a single InstancedMesh pair
- *  - Updates wind uniforms per-frame (1 float write — zero CPU matrix work)
- *  - Manages optional TreeDebug overlays
- *  - Exposes rebuild() so UI sliders can trigger instant re-placement
- *
- * Usage:
- *   const trees = new TreeSystem({ scene, terrain, river, streets });
- *   trees.build();
- *   // in animate():
- *   trees.update(camera, dt);
- */
+
 
 import * as THREE                             from "three";
 import { generateTreeInstances }              from "./treePlacement.js";
@@ -44,15 +26,15 @@ export class TreeSystem {
     this.params = {
       // ── Placement ────────────────────────────────────────────
       count:         800,
-      minSpacing:    18,   // Matches 10x-scaled tree crown size
+      minSpacing:    18,
       riverMargin:   12,
       // streetMargin covers: halfWidth(50) + shoulderBlend(40) + buffer = 55+
       streetMargin:  55,
       walkwayMargin: 8,
-      maxSlope2:     3.0,   // ||∇h||² threshold (allows trees on steep hill sections)
+      maxSlope2:     3.0,
       // ── Wind ─────────────────────────────────────────────────
       windEnabled:   true,
-      windStrength:  0.3,   // Lower default: world sway = strength × scale × windFactor
+      windStrength:  0.3,
       windSpeed:     1.2,
       // ── LOD ──────────────────────────────────────────────────
       lodEnabled:    true,
@@ -63,23 +45,23 @@ export class TreeSystem {
 
     // Internal state
     this.instances   = [];
-    this._materials  = null;   // { trunk, leaves, leavesUniforms }
-    this._lod        = null;   // TreeLodBuckets (large trees)
-    this._lodSmall   = null;   // TreeLodBuckets (small trees)
-    this._single     = null;   // single-tier mesh pair (large, when lodEnabled=false)
-    this._singleSmall = null;  // single-tier mesh pair (small, when lodEnabled=false)
-    this._debug      = null;   // TreeDebug
+    this._materials  = null;
+    this._lod        = null;
+    this._lodSmall   = null;
+    this._single     = null; 
+    this._singleSmall = null;
+    this._debug      = null;
 
-    // Build the terrain query once (re-built only if river/streets change)
+   
     this._query = this._buildQuery();
   }
 
-  // ── Public: Build / Rebuild ───────────────────────────────────
+
 
   build() {
     const { scene, params } = this;
 
-    // ── 1. Generate placements (CPU, ~O(count×30) iterations) ──
+    //  1. Generate placements (CPU, ~O(count×30) iterations) 
     this.instances = generateTreeInstances(
       {
         count:         params.count,
@@ -97,11 +79,10 @@ export class TreeSystem {
 
     console.log(`[TreeSystem] Placed ${this.instances.length} trees.`);
 
-    // ── 2. Build materials ──────────────────────────────────────
+    //  2. Build materials 
     this._materials = buildTreeMaterials({ windEnabled: params.windEnabled });
 
-    // ── 3. Build renderers ──────────────────────────────────────
-    // Separate large and small tree instances
+    //  3. Build renderers
     const largeIndices = getInstancesOfType(this.instances, 'large');
     const smallIndices = getInstancesOfType(this.instances, 'small');
 
@@ -155,7 +136,7 @@ export class TreeSystem {
       }
     }
 
-    // ── 4. Refresh debug if it was previously enabled ──────────
+    // 4. Refresh debug if it was previously enabled 
     if (this._debug) {
       this._debug.rebuild(scene, this.instances, this._streetDebugData(), this.river);
     }
@@ -167,7 +148,7 @@ export class TreeSystem {
     this.build();
   }
 
-  // ── Public: Per-frame update ──────────────────────────────────
+  // Public: Per-frame update 
 
   /**
    * Call once per animation frame.
@@ -175,8 +156,6 @@ export class TreeSystem {
    * @param {number} dt – delta time in seconds
    */
   update(camera, dt) {
-    // Update wind uniforms — ONE float write per frame regardless of tree count.
-    // The GPU shader reads this uniform and applies wind displacement on-chip.
     const u = this._materials?.leavesUniforms;
     if (u) {
       u.uWindTime.value     += dt;
@@ -184,11 +163,10 @@ export class TreeSystem {
       u.uWindSpeed.value     = this.params.windSpeed;
     }
 
-    // Update LOD tier assignments (runs actual work every 0.25s, not every frame)
+
     if (this._lod)      this._lod.update(camera, dt);
   }
 
-  // ── Public: Debug ─────────────────────────────────────────────
 
   enableDebug() {
     if (!this._debug) this._debug = new TreeDebug();
@@ -198,7 +176,6 @@ export class TreeSystem {
     return this._debug;
   }
 
-  // ── Public: Visibility ────────────────────────────────────────
 
   setVisible(v) {
     this.params.visible = v;
@@ -214,7 +191,6 @@ export class TreeSystem {
     }
   }
 
-  // ── Public: Stats ─────────────────────────────────────────────
 
   getStats() {
     const base = { total: this.instances.length };
@@ -222,28 +198,19 @@ export class TreeSystem {
     return base;
   }
 
-  // ── Private helpers ───────────────────────────────────────────
 
-  /** Construct the terrain query API used by treePlacement.js. */
   _buildQuery() {
     const { terrain, river, streets } = this;
 
-    // Walkway occupies the band just outside the river half-width
-    // (matches walkwayWidth = 32 in terrainHeight.js, plus a small buffer)
+
     const WALK_INNER = river.riverHalfWidth ?? 56;
     const WALK_OUTER = WALK_INNER + 34;
 
     return {
-      /**
-       * Bilinear-interpolated terrain height.
-       * Already O(1) — reads from the baked height grid.
-       */
+
       getHeightAt: (x, z) => terrain.heightAt(x, z),
 
-      /**
-       * Squared slope magnitude via central finite differences.
-       * Returns ||∇h||² so callers can compare against maxSlope² without sqrt.
-       */
+
       getSlopeAt: (x, z, eps = 0.75) => {
         const hL = terrain.heightAt(x - eps, z);
         const hR = terrain.heightAt(x + eps, z);
@@ -254,19 +221,13 @@ export class TreeSystem {
         return dx * dx + dz * dz;
       },
 
-      /**
-       * True if (x,z) is inside the river corridor (+ margin).
-       * Uses same meander equation as terrain/water/corridor modules.
-       */
+
       isInsideRiver: (x, z, margin = 0) => {
         const cx = river.centerX(z);
         return Math.abs(x - cx) < (WALK_INNER + margin);
       },
 
-      /**
-       * True if (x,z) is inside or within `margin` units of any street rectangle.
-       * distanceToRectangle returns 0 when inside, positive distance when outside.
-       */
+
       isOnStreet: (x, z, margin = 0) => {
         for (const s of streets) {
           const d = distanceToRectangle(
@@ -279,10 +240,7 @@ export class TreeSystem {
         return false;
       },
 
-      /**
-       * True if (x,z) falls within the walkway band on either side of the river.
-       * Prevents trees from growing on the riverside platforms.
-       */
+
       isOnWalkway: (x, z, margin = 0) => {
         const cx = river.centerX(z);
         const d  = Math.abs(x - cx);
@@ -291,7 +249,7 @@ export class TreeSystem {
     };
   }
 
-  /** Street data formatted for the debug overlay (adds height for box Y). */
+
   _streetDebugData() {
     return this.streets.map(s => ({
       centerX:    s.centerX,
@@ -302,7 +260,7 @@ export class TreeSystem {
     }));
   }
 
-  /** Tear down all GPU resources without triggering a rebuild. */
+
   _dispose() {
     const { scene } = this;
 
@@ -332,11 +290,9 @@ export class TreeSystem {
 
     if (this._debug) {
       this._debug.dispose(scene);
-      // Keep the TreeDebug object alive (its rebuild() will re-populate after build)
     }
   }
 
-  /** Helper: apply instances by type (large or small). */
   _applyInstancesOfType(instances, indices, pair, isSmall) {
     const dummy = new THREE.Object3D();
     const n = indices.length;
@@ -345,16 +301,14 @@ export class TreeSystem {
 
     for (let i = 0; i < n; i++) {
       const t = instances[indices[i]];
-      const scaleFactor = isSmall ? 0.66 : 1.0; // Small trees are 2/3 scale (doubled from 1/3)
+      const scaleFactor = isSmall ? 0.66 : 1.0;
 
-      // Trunk position + scale
       dummy.position.set(t.x, t.y + 2.0 * t.scale * scaleFactor, t.z);
       dummy.rotation.set(0, t.rotY, 0);
       dummy.scale.setScalar(t.scale * scaleFactor);
       dummy.updateMatrix();
       pair.trunk.setMatrixAt(i, dummy.matrix);
 
-      // Leaves position + scale (adjusted for 2-sphere foliage)
       dummy.position.set(t.x, t.y + 4.8 * t.scale * scaleFactor, t.z);
       dummy.rotation.set(0, t.rotY, 0);
       dummy.scale.setScalar(t.scale * scaleFactor);

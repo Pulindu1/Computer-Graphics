@@ -1,8 +1,4 @@
-/**
- * vegetationPlacement.js
- * Rock and stump placement using candidate sampling + rejection.
- * Similar to trees but for smaller, billboarded vegetation objects.
- */
+
 
 function cellKey(cx, cz) {
   return `${cx},${cz}`;
@@ -23,7 +19,7 @@ export function generateVegetationInstances(params, terrainQuery) {
     maxX          =  400,
     minZ          = -1000,
     maxZ          =  1000,
-    minSpacing    = 8,      // Smaller spacing than trees
+    minSpacing    = 8, 
     riverMargin   = 12,
     streetMargin  = 55,
     walkwayMargin = 8,

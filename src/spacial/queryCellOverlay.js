@@ -1,19 +1,15 @@
-// 📄 src/spacial/queryCellOverlay.js
+
 import * as THREE from "three";
 
-/**
- * Highlights which grid cells are being queried for neighbor search
- * Shows the spatial hash query pattern visually
- */
+
 export class QueryCellOverlay {
   constructor({ cellSize = 20, maxInstances = 2000, y = 0.09 } = {}) {
     this.cellSize = cellSize;
     this.y = y;
-    this.maxInstances = maxInstances; // Store it ourselves!
+    this.maxInstances = maxInstances;
 
-    // Create instanced mesh for highlighted cells
     const geometry = new THREE.PlaneGeometry(cellSize * 0.95, cellSize * 0.95);
-    geometry.rotateX(-Math.PI / 2); // Lay flat on ground
+    geometry.rotateX(-Math.PI / 2);
 
     const material = new THREE.MeshBasicMaterial({
       color: 0xffff00, // Yellow highlight
@@ -24,10 +20,10 @@ export class QueryCellOverlay {
     });
 
     this.mesh = new THREE.InstancedMesh(geometry, material, maxInstances);
-    this.mesh.visible = true; // Start visible for debugging
-    this.mesh.count = 0; // Start with no instances
+    this.mesh.visible = true;
+    this.mesh.count = 0;
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    this.mesh.frustumCulled = false; // Prevent culling issues
+    this.mesh.frustumCulled = false;
 
     this.dummy = new THREE.Object3D();
   }
@@ -43,12 +39,11 @@ export class QueryCellOverlay {
       return;
     }
 
-    const n = Math.min(keys.length, this.maxInstances); // Use stored maxInstances!
+    const n = Math.min(keys.length, this.maxInstances);
 
     for (let i = 0; i < n; i++) {
       const { cx, cz } = spatial._unpackKey(keys[i]);
 
-      // World position (center of cell)
       const x = (cx + 0.5) * this.cellSize;
       const z = (cz + 0.5) * this.cellSize;
 
@@ -62,7 +57,6 @@ export class QueryCellOverlay {
   }
   
   updateGeometry() {
-    // Rebuild geometry with new cell size
     const oldGeometry = this.mesh.geometry;
     const newGeometry = new THREE.PlaneGeometry(this.cellSize * 0.95, this.cellSize * 0.95);
     newGeometry.rotateX(-Math.PI / 2);

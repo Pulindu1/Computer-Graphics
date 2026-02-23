@@ -1,10 +1,7 @@
-// Procedural house factory
-// Generates simple LOD houses from primitives, seeded for deterministic output
-
 import * as THREE from "three";
 import { PALETTE } from "./palette.js";
 
-// Seeded pseudo-random (deterministic for same seed)
+
 class SeededRandom {
   constructor(seed) {
     this.seed = seed;
@@ -24,7 +21,7 @@ class SeededRandom {
   }
 }
 
-// Material cache to avoid per-house allocations
+
 const materialCache = new Map();
 
 function getMaterial(key, descriptor) {
@@ -34,17 +31,17 @@ function getMaterial(key, descriptor) {
   return materialCache.get(key);
 }
 
-// Create LOD0: full detail house
+
 function createHouseLOD0(seed, config) {
   const rng = new SeededRandom(seed);
   const group = new THREE.Group();
 
-  // House body dimensions
+
   const bodyW = config.bodyWidth;
   const bodyH = config.bodyHeight;
   const bodyD = config.bodyDepth;
 
-  // Choose wall color deterministically
+
   const wallColors = [
     PALETTE.walls.cream,
     PALETTE.walls.lightGrey,
@@ -58,7 +55,6 @@ function createHouseLOD0(seed, config) {
     metalness: 0.0,
   });
 
-  // Main body
   const bodyGeo = new THREE.BoxGeometry(bodyW, bodyH, bodyD);
   const body = new THREE.Mesh(bodyGeo, wallMat);
   body.position.y = bodyH * 0.5;
@@ -66,7 +62,7 @@ function createHouseLOD0(seed, config) {
   body.receiveShadow = true;
   group.add(body);
 
-  // Roof: choose roof type (gable or flat)
+  // Roof
   const roofChoices = ["gable", "flat"];
   const roofType = rng.choose(roofChoices);
 
@@ -79,7 +75,7 @@ function createHouseLOD0(seed, config) {
   });
 
   if (roofType === "gable") {
-    // Gable: cone-like roof
+    // cone-like roof
     const roofGeo = new THREE.ConeGeometry(bodyW * 0.5, bodyH * 0.6, 4);
     const roof = new THREE.Mesh(roofGeo, roofMat);
     roof.position.y = bodyH + bodyH * 0.3;
@@ -88,7 +84,7 @@ function createHouseLOD0(seed, config) {
     roof.receiveShadow = true;
     group.add(roof);
   } else {
-    // Flat: thin box
+
     const roofGeo = new THREE.BoxGeometry(bodyW * 1.1, bodyH * 0.15, bodyD * 1.1);
     const roof = new THREE.Mesh(roofGeo, roofMat);
     roof.position.y = bodyH + bodyH * 0.075;
@@ -97,7 +93,7 @@ function createHouseLOD0(seed, config) {
     group.add(roof);
   }
 
-  // Windows: simple emissive planes on front face
+  // Windows
   const windowGlassMat = getMaterial("window", {
     color: PALETTE.windows.glass,
     roughness: 0.1,
@@ -106,31 +102,31 @@ function createHouseLOD0(seed, config) {
     emissiveIntensity: 0.3,
   });
 
-  const windowSize = bodyW * 0.24;  // Scale with body width
-  const windowSpacing = bodyW * 0.48;  // Scale spacing
+  const windowSize = bodyW * 0.24;
+  const windowSpacing = bodyW * 0.48;
   const windowRow1Y = bodyH * 0.65;
   const windowRow2Y = bodyH * 0.35;
 
   for (let i = 0; i < 2; i++) {
     const xPos = -bodyW * 0.25 + i * windowSpacing;
-    // Row 1
+
     const win1Geo = new THREE.PlaneGeometry(windowSize, windowSize);
     const win1 = new THREE.Mesh(win1Geo, windowGlassMat);
-    win1.position.set(xPos, windowRow1Y, bodyD * 0.5 + 0.05);  // Back to front face
+    win1.position.set(xPos, windowRow1Y, bodyD * 0.5 + 0.05);
     win1.receiveShadow = false;
     group.add(win1);
 
     // Row 2
     const win2Geo = new THREE.PlaneGeometry(windowSize, windowSize);
     const win2 = new THREE.Mesh(win2Geo, windowGlassMat);
-    win2.position.set(xPos, windowRow2Y, bodyD * 0.5 + 0.05);  // Back to front face
+    win2.position.set(xPos, windowRow2Y, bodyD * 0.5 + 0.05);
     win2.receiveShadow = false;
     group.add(win2);
   }
 
-  // Door: simple box on front face, centered bottom
-  const doorW = bodyW * 0.2;  // Scale with body width
-  const doorH = bodyH * 0.34;  // Scale with body height
+  // Door
+  const doorW = bodyW * 0.2;
+  const doorH = bodyH * 0.34;
   const doorD = 0.1;
   const doorMat = getMaterial("door", {
     color: PALETTE.doors.brown,
@@ -140,7 +136,7 @@ function createHouseLOD0(seed, config) {
 
   const doorGeo = new THREE.BoxGeometry(doorW, doorH, doorD);
   const door = new THREE.Mesh(doorGeo, doorMat);
-  door.position.set(0, doorH * 0.5, bodyD * 0.5 + 0.1);  // Back to front face
+  door.position.set(0, doorH * 0.5, bodyD * 0.5 + 0.1);
   door.castShadow = true;
   door.receiveShadow = true;
   group.add(door);
@@ -148,7 +144,7 @@ function createHouseLOD0(seed, config) {
   return group;
 }
 
-// Create LOD1: simplified (body + roof only)
+// LOD1: simplified (body + roof only)
 function createHouseLOD1(seed, config) {
   const rng = new SeededRandom(seed);
   const group = new THREE.Group();
@@ -170,7 +166,7 @@ function createHouseLOD1(seed, config) {
     metalness: 0.0,
   });
 
-  // Body (same as LOD0)
+  // Body
   const bodyGeo = new THREE.BoxGeometry(bodyW, bodyH, bodyD);
   const body = new THREE.Mesh(bodyGeo, wallMat);
   body.position.y = bodyH * 0.5;
@@ -178,7 +174,7 @@ function createHouseLOD1(seed, config) {
   body.receiveShadow = true;
   group.add(body);
 
-  // Roof simplified (just a thin box)
+  // Roof simplified
   const roofColors = [PALETTE.roofs.slate, PALETTE.roofs.terracotta, PALETTE.roofs.brown];
   const roofColor = rng.choose(roofColors);
   const roofMat = getMaterial(`roof_${roofColor}`, {
@@ -197,12 +193,12 @@ function createHouseLOD1(seed, config) {
   return group;
 }
 
-// Create LOD2: very simple (single box silhouette)
+// LOD2
 function createHouseLOD2(seed, config) {
   const rng = new SeededRandom(seed);
 
   const bodyW = config.bodyWidth;
-  const bodyH = config.bodyHeight * 1.15; // Slightly taller for silhouette
+  const bodyH = config.bodyHeight * 1.15;
   const bodyD = config.bodyDepth;
 
   const wallColors = [
@@ -227,7 +223,7 @@ function createHouseLOD2(seed, config) {
   return silhouette;
 }
 
-// Create a full THREE.LOD object with all detail levels
+
 export function createHouseLOD(seed, config) {
   const lod = new THREE.LOD();
 
@@ -235,22 +231,20 @@ export function createHouseLOD(seed, config) {
   const lod1 = createHouseLOD1(seed, config);
   const lod2 = createHouseLOD2(seed, config);
 
-  // addLevel(object, distance)
-  // distance = camera distance at which this level becomes active
   lod.addLevel(lod0, 0);    // Close: full detail
-  lod.addLevel(lod1, 700);  // Mid: simplified (visible from far)
-  lod.addLevel(lod2, 2000);  // Far: silhouette (very far away)
+  lod.addLevel(lod1, 700);  // Mid: simplified
+  lod.addLevel(lod2, 2000);  // Far: silhouette
 
   return lod;
 }
 
-// Default house config
+
 export const HOUSE_CONFIG_DEFAULT = {
   bodyWidth: 25,
   bodyHeight: 35,
   bodyDepth: 30,
   plotWidth: 35,
   plotGap: 10,
-  setback: 8,  // Bring houses closer
-  plotDepth: 15,  // Reduced from 40
+  setback: 8,
+  plotDepth: 15,
 };

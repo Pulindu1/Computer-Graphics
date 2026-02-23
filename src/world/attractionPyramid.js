@@ -1,6 +1,3 @@
-// Attraction Pyramid: Focal point for crowd gathering
-// Single glowing pink pyramid with efficient global PointLight (no shadows)
-// Inspired by reactor core pattern from SSAO+HDR masterclass
 
 import * as THREE from "three";
 
@@ -15,9 +12,9 @@ export class AttractionPyramid {
       height: params.height ?? 25,
       color: params.color ?? 0xff1493,
       emissiveIntensity: params.emissiveIntensity ?? 6.0,
-      lightIntensity: params.lightIntensity ?? 2.0,  // Reduced: was 4.0 - subtle ambient only
-      lightRange: params.lightRange ?? 1000,  // Only 1000 units for light effect
-      sideOffset: params.sideOffset ?? -45,  // Offset towards river side (negative = towards -X)
+      lightIntensity: params.lightIntensity ?? 2.0,
+      lightRange: params.lightRange ?? 1000,
+      sideOffset: params.sideOffset ?? -45,
       enabled: params.enabled ?? true,
     };
 
@@ -34,11 +31,8 @@ export class AttractionPyramid {
   _build() {
     const p = this.params;
 
-    // Create pyramid geometry (tetrahedron is simple, use cone for more traditional pyramid)
-    // Using ConeGeometry: radius, height, segments
     const pyramidGeo = new THREE.ConeGeometry(p.size, p.height, 4);
 
-    // Emissive pink material (inspired by reactor core in SSAO demo)
     const pyramidMat = new THREE.MeshStandardMaterial({
       color: p.color,
       emissive: p.color,
@@ -51,39 +45,38 @@ export class AttractionPyramid {
     this.mesh.castShadow = true;
     this.mesh.receiveShadow = true;
 
-    // Position: offset towards river side (negative X direction)
+
     this.mesh.position.set(p.centerX + p.sideOffset, p.streetHeight + p.height * 0.5, p.centerZ);
 
     this.root.add(this.mesh);
 
-    // Add a single global PointLight with optimized shadows
+
     this.light = new THREE.PointLight(p.color, p.lightIntensity, p.lightRange);
-    this.light.castShadow = true;  // Enable shadows for visual quality
+    this.light.castShadow = true;
     
-    // Optimize shadow rendering: lower resolution + appropriate bounds
-    this.light.shadow.mapSize.width = 1024;   // Reduced from default 2048
+
+    this.light.shadow.mapSize.width = 1024;
     this.light.shadow.mapSize.height = 1024;
     this.light.shadow.camera.near = 0.1;
     this.light.shadow.camera.far = p.lightRange;
-    this.light.shadow.bias = -0.001;  // Reduce shadow acne artifacts
+    this.light.shadow.bias = -0.001;
     
     this.light.position.copy(this.mesh.position);
-    this.light.position.y += p.height * 0.3;  // Slightly above peak
+    this.light.position.y += p.height * 0.3;
     this.scene.add(this.light);
   }
 
   update(timeSec) {
     if (!this.params.enabled || !this.mesh) return;
 
-    // Subtle rotation for visual interest
+
     this.mesh.rotation.y += 0.001;
 
-    // Gentle bobbing animation
     const bobAmount = 0.5;
     this.mesh.position.y = this.params.streetHeight + this.params.height * 0.5 + 
                            Math.sin(timeSec * 0.5) * bobAmount;
 
-    // Update light position to match mesh (if bobbing)
+
     if (this.light) {
       this.light.position.copy(this.mesh.position);
       this.light.position.y += this.params.height * 0.3;

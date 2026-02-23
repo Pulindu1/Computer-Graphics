@@ -1,5 +1,4 @@
-// Pure terrain math: x,z -> { y, masks }
-// masks are smooth weights in [0..1] used for colouring and logic later.
+
 
 function clamp01(t) {
   return Math.max(0, Math.min(1, t));
@@ -20,13 +19,13 @@ function riverCenterX(z, p) {
 
 export function createTerrainSampler(params = {}) {
   const p = {
-    // Base terrain undulation (keep smooth)
+    // Base terrain undulation
     baseAmplitude: 12,
     baseWavelength: 220,
     secondaryAmplitude: 4,
     secondaryWavelength: 110,
 
-    // River: windier
+
     riverMeanderAmp: 55,
     riverMeanderWavelength: 140,
 
@@ -34,25 +33,24 @@ export function createTerrainSampler(params = {}) {
     riverHalfWidth: 56,
     riverBlend: 16,
     riverDepth: 14,
-    waterLevel: -6,  // <-- NEW: constant river water surface height
+    waterLevel: -6,
 
 
     // Walkway band (either side of river)
     walkwayWidth: 32,
-    walkwayBlend: 20,    // Increased from 5 for smoother transitions
-    walkwayLift: 0.3,    // Reduced from 0.9 for flatter path
+    walkwayBlend: 20,
+    walkwayLift: 0.3,
 
-    // Hills shaping (symmetrical)
+    // Hills shaping
     leftHillMultiplier: 1.4,
     rightHillMultiplier: 1.4,
 
-    // NEW: valleyMaxHeight is now a *bounded* height (not a slope coefficient)
-    valleyMaxHeight: 180, // try 140..260 for steeper/less steep
-    floodplainWidth: 30,  // flat-ish zone near river
-    rampWidth: 240,       // how far from floodplain until hills reach max
+ 
+    valleyMaxHeight: 180,
+    floodplainWidth: 30,
+    rampWidth: 240,
 
-    // How sharply hills rise after floodplain (higher = steeper)
-    rampPower: 2.6,       // try 2.0..3.4
+    rampPower: 2.6,
 
     seedishOffset: 13.37,
 
@@ -63,49 +61,40 @@ export function createTerrainSampler(params = {}) {
     const cx = riverCenterX(z, p);
     const d = Math.abs(x - cx);
 
-    // Smooth base height (low-ish frequency)
+    // Smooth base height
     const base =
       Math.sin((x + p.seedishOffset) / p.baseWavelength) * p.baseAmplitude +
       Math.cos((z - p.seedishOffset) / (p.baseWavelength * 0.95)) * (p.baseAmplitude * 0.55) +
       Math.sin((x + z) / p.secondaryWavelength) * p.secondaryAmplitude;
 
-    // Asymmetry: right side hillier (now equal for symmetry)
+    // Asymmetry
     const sideMul = 1.0; // Both sides equal
     
-    // --- Valley profile (bounded, "flat then steep") ---
-    // 1) subtract floodplain
+
     const rampD = Math.max(0, d - p.floodplainWidth);
-    // 2) convert to 0..1 using smoothstep so it never explodes
     const tRamp = smoothstep(0, p.rampWidth, rampD);
-    // 3) make it steeper
     const steepRamp = Math.pow(tRamp, p.rampPower);
-    // 4) symmetrical slope rise (both sides equal)
     const slopeMul = 1.05;
 
     const valley = steepRamp * p.valleyMaxHeight * slopeMul;
-    
-    // --- Peak plateau: create flat platform at the peak on either side ---
-    // Terrain rises naturally to peak, then stays flat (plateau)
-    // plateauStart: where plateau begins (at the peak)
-    // Beyond this distance, clamp height to peak value
+
     const plateauStart = 280;
-    const plateauHeight = base * sideMul + valley; // Calculate height at plateauStart
+    const plateauHeight = base * sideMul + valley;
     
     let finalHill;
     if (d >= plateauStart) {
-      // Beyond peak: stay at plateau height (flat)
+
       finalHill = plateauHeight;
     } else {
-      // Before peak: natural rising terrain
+
       finalHill = base * sideMul + valley;
     }
 
-    // Smooth "river mask": 1 at centre, fades to 0 outside (halfWidth+blend)
+
     const riverInner = p.riverHalfWidth;
     const riverOuter = p.riverHalfWidth + p.riverBlend;
     const riverMask = 1.0 - smoothstep(riverInner, riverOuter, d);
 
-    // Smooth "walkway ring mask" just outside the river
     const wIn = p.riverHalfWidth;
     const wOut = p.riverHalfWidth + p.walkwayWidth;
 
@@ -113,28 +102,20 @@ export function createTerrainSampler(params = {}) {
       smoothstep(wIn, wIn + p.walkwayBlend, d) *
       (1.0 - smoothstep(wOut, wOut + p.walkwayBlend, d));
 
-    // Start with terrain (land height)
     let y = finalHill;
 
-    // --- River: force a flat water surface at waterLevel ---
-    // We blend the land height toward a constant water level using riverMask.
-    // riverMask = 1 at centre -> y becomes waterLevel
-    // riverMask -> 0 away from river -> y stays as land
     y = y * (1.0 - riverMask) + p.waterLevel * riverMask;
 
 
-    // --- Walkway: flat core, blend at edges ---
 
     const walkwayY = p.waterLevel + p.walkwayLift;
 
 
-    const walkwayCoreMask = Math.pow(walkwayRingMask, 1.2);  // Reduced from 1.8 for smoother core
+    const walkwayCoreMask = Math.pow(walkwayRingMask, 1.2);
     const walkwayEdgeMask = walkwayRingMask - walkwayCoreMask;
 
-    // Core: snap to flat
     y = y * (1.0 - walkwayCoreMask) + walkwayY * walkwayCoreMask;
 
-    // Edge: gentle transition
     const edgeFlatten = 1.0 - walkwayEdgeMask * 0.9;
     const edgeY =
       base * edgeFlatten * sideMul + valley - riverMask * p.riverDepth * 0.25;

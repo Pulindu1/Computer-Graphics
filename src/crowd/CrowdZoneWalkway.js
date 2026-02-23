@@ -1,5 +1,4 @@
-// 📄 src/crowd/CrowdZoneWalkway.js
-// Phase 1: Flow-field walking, two-lane rules, prioritized dithering, state-based behavior
+
 import * as THREE from "three";
 import { createMiniPersonMesh, animateHumanoid } from "./MiniPersonFactory.js";
 import { animateHumanoidLOD } from "./animationLOD.js";
@@ -7,7 +6,7 @@ import { SpatialHashGrid } from "./SpatialHashGrid.js";
 import { SpatialHashIndex } from "../spatial/SpatialHashIndex.js";
 import { QuadtreeIndex } from "../spatial/QuadtreeIndex.js";
 
-// ── Behavior states (context-aware crowd logic) ──
+//  Behavior states 
 const STATE_CRUISE = 0;
 const STATE_QUEUE = 1;
 const STATE_AVOID = 2;
@@ -16,7 +15,7 @@ const STATE_LEADER = 4;
 
 const STATE_NAMES = ["cruise", "queue", "avoid", "idle", "leader"];
 
-// ── Speed modes ──────────────────────────────────────────────
+//  Speed modes 
 const MODE_IDLE = 0;
 const MODE_WALK = 1;
 const MODE_FAST = 2;
@@ -24,10 +23,7 @@ const MODE_FAST = 2;
 const MODE_SPEEDS = [0, 0.01, 0.05];
 const MODE_LABELS = ["idle", "walk", "fast"];
 
-/**
- * State-based weight configuration
- * Maps behavior state → steering weights
- */
+
 const STATE_WEIGHTS = {
   [STATE_CRUISE]: { flow: 1.5, lane: 1.0, sep: 1.5, ali: 0.3, coh: 0.2, queue: 0.5, wander: 0.3 },
   [STATE_QUEUE]:  { flow: 0.8, lane: 0.8, sep: 2.0, ali: 0.5, coh: 0.3, queue: 2.5, wander: 0.1 },
@@ -36,14 +32,7 @@ const STATE_WEIGHTS = {
   [STATE_LEADER]: { flow: 1.2, lane: 0.8, sep: 1.2, ali: 0.2, coh: 0.1, queue: 0.3, wander: 0.5 },
 };
 
-/**
- * Manages a crowd of agents on a walkway with:
- *  - Flow-field walking (agents follow path tangent)
- *  - Two-lane rules (reduces head-on collisions)
- *  - Prioritized dithering (avoidance can't be cancelled)
- *  - State-based behavior (cruise/queue/avoid/idle)
- *  - Leader-following for advanced group dynamics
- */
+
 export class WalkwayZone {
   constructor({
     scene,
@@ -67,25 +56,23 @@ export class WalkwayZone {
     this.brakeRadius = brakeRadius;
     this.platformHeight = platformHeight;
 
-    // Feature toggles
+
     this.enableFlowField = enableFlowField;
     this.enableLanes = enableLanes;
     this.enablePriority = enablePriority;
 
     this.bodyRadius = 1.4;
     this.agents = [];
-    this.leaders = []; // Leader agents
-    this.tmpNeighbors = []; // Preallocated temp array for queryInto
+    this.leaders = [];
+    this.tmpNeighbors = [];
 
-    // Pluggable spatial index — default to hash, swappable at runtime
+
     this.spatialIndexMode = "hash"; // "hash" | "quadtree"
-    // Default generous world bounds (overridden via setSpatialBounds)
     this._worldBounds = { minX: -500, minZ: -1200, maxX: 500, maxZ: 1200 };
     this._hashIndex = new SpatialHashIndex(neighborRadius);
     this._qtIndex   = new QuadtreeIndex(this._worldBounds, { capacity: 8, maxDepth: 10 });
-    this.grid = this._hashIndex; // active index reference (legacy name kept for compat)
+    this.grid = this._hashIndex;
 
-    // Global tunable weights (UI can override state weights)
     this.weights = {
       flow: 1.5,
       lane: 1.0,
@@ -102,12 +89,12 @@ export class WalkwayZone {
       queriesThisFrame: 0,
       avgNeighborsFound: 0,
       timings: { steering: 0, collisions: 0, physics: 0 },
-      // Spatial index diagnostics (updated each frame from active index)
-      spatial: null, // reference to active index.stats
+
+      spatial: null,
     };
 
-    // Animation LOD system initialization
-    this.camera = null; // Set externally via setCamera()
+
+    this.camera = null;
     this.animLodEnabled = true;
     this.animLodParams = {
       NEAR_IN_SQ: 15 * 15,   // 15m
@@ -149,7 +136,6 @@ export class WalkwayZone {
     return new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
   }
 
-  // ─────────────────────────── spawn / remove ──────────────────────────
   spawn(count, isLeader = false) {
     const palette = [0x3388ff, 0xff8833, 0x33aa55, 0xcc4444, 0x8855cc, 0xddaa33];
 
@@ -192,7 +178,6 @@ export class WalkwayZone {
     }
   }
 
-  // ─────────────────────────── Animation LOD Control ─────────────────
   setCamera(camera) {
     this.camera = camera;
   }
@@ -205,26 +190,25 @@ export class WalkwayZone {
     this.animLodParams = { ...this.animLodParams, ...params };
   }
 
-  /** Switch between "hash" and "quadtree" at runtime */
+
   setSpatialIndexMode(mode) {
     this.spatialIndexMode = mode;
     this.grid = mode === "quadtree" ? this._qtIndex : this._hashIndex;
     this.stats.spatial = this.grid.stats;
   }
 
-  /** Update the world bounds used by the quadtree (call if scene moves) */
+
   setSpatialBounds(bounds) {
     this._worldBounds = bounds;
     this._qtIndex.setBounds(bounds);
   }
 
-  // ─────────────────────────── update loop ──────────────────────────
+  //  update loop 
   update(dt, time) {
     this.stats.agentCount = this.agents.length;
     this.stats.queriesThisFrame = 0;
     this.stats.avgNeighborsFound = 0;
 
-    // Keep active index in sync with mode toggle
     this.grid = this.spatialIndexMode === "quadtree" ? this._qtIndex : this._hashIndex;
     this.stats.spatial = this.grid.stats;
 
@@ -253,7 +237,7 @@ export class WalkwayZone {
     this.clampToPath(agent);
     this.syncSplineProgress(agent);
 
-    // Animation LOD: use LOD if camera available, otherwise fallback to full animation
+
     if (this.camera && this.animLodEnabled) {
       animateHumanoidLOD(agent, time, this.camera.position, this.animLodParams, this.animLodEnabled);
     } else {
@@ -261,7 +245,7 @@ export class WalkwayZone {
     }
   }
 
-  // ──────────────────── Behavior State Machine ──────────────
+  //  Behavior State Machine 
   updateBehaviorState(agent) {
     agent.stateTimer--;
     const newState = this.decideBehaviorState(agent);
@@ -279,7 +263,7 @@ export class WalkwayZone {
     return STATE_CRUISE;
   }
 
-  // ────────────────── Speed Mode Update ──────────────────
+  //  Speed Mode Update 
   updateMode(agent) {
     agent.modeTimer--;
     if (agent.modeTimer > 0) return;
@@ -299,7 +283,7 @@ export class WalkwayZone {
     if (Math.random() < 0.1) agent.dir *= -1;
   }
 
-  // ──────────────── Prioritized Dithering Accumulator ──────────────────
+  //  Prioritized Dithering Accumulator 
   computeSteering(agent, neighbors, time) {
     const acc = new THREE.Vector3();
     const maxForce = agent.maxForce;
@@ -309,7 +293,6 @@ export class WalkwayZone {
       stateWeights[k] = this.weights[k];
     });
 
-    // Priority 1: HARD AVOIDANCE
     if (!this.enablePriority) {
       const sep = this.separationForce(agent, neighbors);
       this.addForceToAccumulator(acc, sep, stateWeights.sep, maxForce);
@@ -320,7 +303,6 @@ export class WalkwayZone {
       if (acc.length() > maxForce * 0.8) return this.clampForce(acc, maxForce);
     }
 
-    // Priority 2: QUEUE BRAKING
     const pathInfo = this.getPathInfo(agent);
     if (stateWeights.queue > 0 && agent.mode !== MODE_IDLE) {
       const queue = this.queueingForce(agent, neighbors, pathInfo.tangent);
@@ -328,7 +310,7 @@ export class WalkwayZone {
       if (acc.length() > maxForce * 0.8) return this.clampForce(acc, maxForce);
     }
 
-    // Priority 3: FLOW FIELD & LANE FOLLOWING
+
     if (this.enableFlowField && stateWeights.flow > 0 && agent.mode !== MODE_IDLE) {
       const flow = this.flowForce(agent, pathInfo);
       this.addForceToAccumulator(acc, flow, stateWeights.flow, maxForce);
@@ -339,7 +321,6 @@ export class WalkwayZone {
       this.addForceToAccumulator(acc, lane, stateWeights.lane, maxForce);
     }
 
-    // Priority 4: ALIGNMENT & COHESION
     if (stateWeights.ali > 0) {
       const ali = this.alignmentForce(agent, neighbors);
       this.addForceToAccumulator(acc, ali, stateWeights.ali, maxForce);
@@ -350,13 +331,12 @@ export class WalkwayZone {
       this.addForceToAccumulator(acc, coh, stateWeights.coh, maxForce);
     }
 
-    // Priority 5: WANDER
+
     if (stateWeights.wander > 0 && agent.mode !== MODE_IDLE) {
       const wan = this.wanderForce(agent, pathInfo);
       this.addForceToAccumulator(acc, wan, stateWeights.wander, maxForce);
     }
 
-    // Priority 6: LEADER FOLLOWING
     if (this.leaders.length > 0 && !agent.isLeader && stateWeights.flow > 0) {
       const leaderForce = this.leaderFollowingForce(agent);
       this.addForceToAccumulator(acc, leaderForce, 0.5, maxForce);
@@ -380,7 +360,7 @@ export class WalkwayZone {
     }
   }
 
-  // ──────────────── Path Guidance ──────────────────
+
   getPathInfo(agent) {
     const t = agent.t;
     const tangent = this.pathTangent(t);
@@ -390,7 +370,7 @@ export class WalkwayZone {
     return { t, tangent, normal, center };
   }
 
-  // ──────────────── Flow-Field Force ──────────────────
+
   flowForce(agent, pathInfo) {
     const { tangent } = pathInfo;
     const flowDir = tangent.clone().multiplyScalar(agent.dir);
@@ -398,7 +378,7 @@ export class WalkwayZone {
     return desired.sub(agent.vel);
   }
 
-  // ──────────────── Lane-Following Force ──────────────────
+
   laneForce(agent, pathInfo, neighbors) {
     const { center, normal } = pathInfo;
     const laneWidth = this.corridorWidth / 3;
@@ -418,7 +398,7 @@ export class WalkwayZone {
     return new THREE.Vector3();
   }
 
-  // ──────────────── Wander Force ──────────────────
+  //  Wander Force 
   wanderForce(agent, pathInfo) {
     const { tangent, normal } = pathInfo;
 
@@ -433,7 +413,7 @@ export class WalkwayZone {
     return desired.sub(agent.vel);
   }
 
-  // ──────────────── Leader Following (Advanced Group Behavior) ──────────────────
+  //  Leader Following (Advanced Group Behavior) 
   leaderFollowingForce(agent) {
     if (this.leaders.length === 0) return new THREE.Vector3();
 
@@ -468,7 +448,7 @@ export class WalkwayZone {
     return new THREE.Vector3();
   }
 
-  // ────────────────── separation ──────────────────
+  //  separation 
   separationForce(agent, neighbors) {
     const force = new THREE.Vector3();
     const minDist = this.bodyRadius * 2;
@@ -482,10 +462,9 @@ export class WalkwayZone {
       const dist = diff.length();
       if (dist < 0.01 || dist >= this.neighborRadius) continue;
 
-      // Much stronger push when bodies overlap
       const strength = dist < minDist
-        ? ((minDist - dist) / minDist) * 4.0   // overlap → big push
-        : 1.0 / (dist * dist);                  // further → gentle
+        ? ((minDist - dist) / minDist) * 4.0   
+        : 1.0 / (dist * dist);  
 
       diff.normalize().multiplyScalar(strength);
       force.add(diff);
@@ -496,7 +475,7 @@ export class WalkwayZone {
     return force;
   }
 
-  // ────────────────── alignment ──────────────────
+  //  alignment 
   alignmentForce(agent, neighbors) {
     const avg = new THREE.Vector3();
     let count = 0;
@@ -517,7 +496,7 @@ export class WalkwayZone {
     return new THREE.Vector3();
   }
 
-  // ────────────────── cohesion ──────────────────
+  //  cohesion 
   cohesionForce(agent, neighbors) {
     const com = new THREE.Vector3();
     let count = 0;
@@ -538,7 +517,7 @@ export class WalkwayZone {
     return new THREE.Vector3();
   }
 
-  // ────────────────── queueing ──────────────────
+  //  queueing 
   queueingForce(agent, neighbors, tangent) {
     const brake = new THREE.Vector3();
     const moveDir = tangent.clone().multiplyScalar(agent.dir);
@@ -559,7 +538,7 @@ export class WalkwayZone {
     return brake;
   }
 
-  // ────────────────── hard collision resolution ──────────────────
+  //  hard collision resolution 
   resolveCollisions(agent, neighbors) {
     const minDist = this.bodyRadius * 2;
 
@@ -577,7 +556,7 @@ export class WalkwayZone {
     }
   }
 
-  // ──────────────── Path Containment ──────────────────
+  //  Path Containment 
   clampToPath(agent) {
     const pathInfo = this.getPathInfo(agent);
     const { center, normal, tangent } = pathInfo;
@@ -588,7 +567,7 @@ export class WalkwayZone {
 
     const maxLat = this.corridorWidth / 2 - 0.2;
 
-    // Soft edge repulsion (before hard clamp)
+
     const softThreshold = maxLat * 0.8;
     if (Math.abs(lateral) > softThreshold) {
       const repulsion = Math.sign(lateral) * -1;
@@ -596,7 +575,7 @@ export class WalkwayZone {
       agent.acc.add(normal.clone().multiplyScalar(repulsion * strength * 0.5));
     }
 
-    // Hard clamp (safety)
+
     const clamped = THREE.MathUtils.clamp(lateral, -maxLat, maxLat);
 
     agent.pos.copy(center);
@@ -609,7 +588,7 @@ export class WalkwayZone {
     }
   }
 
-  // ────────────────── physics ──────────────────
+  //  physics 
   clampForce(v, max) {
     if (v.length() > max) v.normalize().multiplyScalar(max);
     return v;
@@ -628,7 +607,7 @@ export class WalkwayZone {
     agent.acc.set(0, 0, 0);
   }
 
-  // ──────────────── Spline Sync ──────────────────
+  //  Spline Sync 
   syncSplineProgress(agent) {
     const { tangent } = this.getPathInfo(agent);
     const along = agent.vel.dot(tangent);

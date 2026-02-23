@@ -1,11 +1,4 @@
-// 📄 src/spatial/SpatialHashIndex.js
-/**
- * ISpatialIndex wrapper around the existing integer-key spatial hash.
- * Drop-in replacement: delegates to SpatialHashGrid (CrowdZoneWalkway)
- * or the inline SpatialHash class (StreetPedestrians) via the same interface.
- *
- * Uses the same allocation-free strategy: stable buckets, packKey integers.
- */
+
 import { ISpatialIndex } from "./ISpatialIndex.js";
 import { cellCoord, packKey } from "../spacial/hashKey.js";
 
@@ -20,12 +13,12 @@ export class SpatialHashIndex extends ISpatialIndex {
     this._totalCandidates = 0;
   }
 
-  // ── ISpatialIndex ──────────────────────────────────────────────────
+
 
   clear() {
     const t0 = performance.now();
     for (const bucket of this._map.values()) bucket.length = 0;
-    this.stats.buildMs = performance.now() - t0; // just the clear cost
+    this.stats.buildMs = performance.now() - t0;
     this.stats.queriesThisFrame = 0;
     this.stats.queryMs = 0;
     this._totalCandidates = 0;
@@ -41,10 +34,7 @@ export class SpatialHashIndex extends ISpatialIndex {
     this.stats.buildMs += performance.now() - t0;
   }
 
-  /**
-   * Fill `out` with all agents in the (2r+1)×(2r+1) cell neighbourhood.
-   * Caller must distance-filter after.
-   */
+
   queryInto(x, z, radius, out) {
     const t0 = performance.now();
     out.length = 0;

@@ -1,6 +1,3 @@
-// 📄 src/environment/riverCorridor.js
-
-// Must match the meander equation in terrainHeight.js / water.js
 export function makeRiverCorridor({
   width = 800,
   length = 800,
@@ -25,7 +22,6 @@ export function makeRiverCorridor({
     return Math.max(lo, Math.min(hi, v));
   }
 
-  // Clamp an x to within river edges at a given z (with a margin)
   function clampXToRiver(x, z, margin = 0) {
     const cx = centerX(z);
     const dx = x - cx;
@@ -33,7 +29,7 @@ export function makeRiverCorridor({
     return cx + dxClamped;
   }
 
-  // Same idea but in "river coords": clamp dx directly
+
   function clampDx(dx, margin = 0) {
     return clamp(dx, -riverHalfWidth + margin, +riverHalfWidth - margin);
   }

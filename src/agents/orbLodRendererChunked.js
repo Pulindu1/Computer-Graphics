@@ -1,25 +1,24 @@
-// 📄 src/agents/orbLodRendererChunked.js
 import * as THREE from "three";
 import { ChunkedInstancing } from "./chunkedInstancing.js";
 
 export function createOrbLodRenderer({
   count,
   nearRadius = 0.65,
-  farRadius = 0.8, // Increased significantly for visibility at distance
+  farRadius = 0.8,
 
-  // LOD switching distance
+
   lodDistance = 70,
   hysteresis = 10,
   
-  // Chunking parameters (optimization 7)
+
   chunkSize = 256,
   maxInstancesPerChunk = 512,
 
-  // visual tuning
+
   nearEmissive = 0x9bd7ff,
   farEmissive = 0xffffff,
   nearEmissiveIntensity = 2.2,
-  farEmissiveIntensity = 2.5, // Boosted from 1.4 for distance visibility
+  farEmissiveIntensity = 2.5,
 } = {}) {
   const nearGeo = new THREE.SphereGeometry(nearRadius, 10, 10);
   const farGeo = new THREE.SphereGeometry(farRadius, 8, 8);
@@ -40,7 +39,6 @@ export function createOrbLodRenderer({
     metalness: 0.0,
   });
 
-  // Create chunked instancing systems (optimization 7)
   const nearChunks = new ChunkedInstancing(nearGeo, nearMat, chunkSize, maxInstancesPerChunk);
   const farChunks = new ChunkedInstancing(farGeo, farMat, chunkSize, maxInstancesPerChunk);
 
@@ -56,7 +54,7 @@ export function createOrbLodRenderer({
     frame++;
     const camPos = camera.position;
     
-    // Skip update if camera static and frame % 4 !== 0
+
     if (lastCamPos) {
       const dx = camPos.x - lastCamPos.x;
       const dy = camPos.y - lastCamPos.y;
@@ -73,10 +71,10 @@ export function createOrbLodRenderer({
     const camY = camPos.y;
     const camZ = camPos.z;
     
-    // Direct array access (SoA optimization 8)
+
     const { posX, posY, posZ } = swarm;
     
-    // Rebuild chunks every second
+
     if (!chunksBuilt || (frame % 60) === 0) {
       console.log(`Rebuilding chunks for ${swarm.count} agents`);
       nearChunks.rebuildChunks(swarm.count, posX, posZ);
