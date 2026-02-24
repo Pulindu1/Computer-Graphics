@@ -12,13 +12,6 @@
    
    This will serve the files at [http://localhost:8000].
 
-2. **Open the Game**
-   
-   Open your browser and go to:
-   
-   [http://localhost:8000/index.html]
-   
-   - For debugging, you can use `debug.html` or `test.html` in the same way.
 
 ## External Resources Used
 
