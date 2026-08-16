@@ -1,4 +1,4 @@
-# Durham Lumière — Large-Scale Crowd Simulation & Parametric Rendering
+# Large-Scale Crowd Simulation & Parametric Rendering
 
 A real-time WebGL simulation of a stylised Durham riverside light festival, built from scratch in
 **Three.js** with no build step, no engine, and no imported 3D models. Everything you see — the
