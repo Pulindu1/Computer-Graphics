@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { createMiniPersonMesh, animateHumanoid } from "../crowd/MiniPersonFactory.js";
 import { animateHumanoidLOD } from "../crowd/animationLOD.js";
-import { cellCoord, packKey, unpackKey } from "../spacial/hashKey.js";
+import { cellCoord, packKey, unpackKey } from "../spatial/hashKey.js";
 import { SpatialHashIndex } from "../spatial/SpatialHashIndex.js";
 import { QuadtreeIndex } from "../spatial/QuadtreeIndex.js";
 

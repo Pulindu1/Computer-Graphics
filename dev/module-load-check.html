@@ -22,27 +22,27 @@
             console.log("✓ THREE loaded:", THREE);
             
             console.log("2. Loading initThree...");
-            const { initThree } = await import("./src/core/initThree.js");
+            const { initThree } = await import("../src/core/initThree.js");
             console.log("✓ initThree loaded");
             
             console.log("3. Loading resize...");
-            const { installResizeHandler } = await import("./src/core/resize.js");
+            const { installResizeHandler } = await import("../src/core/resize.js");
             console.log("✓ resize loaded");
             
             console.log("4. Loading terrain...");
-            const { createTerrain } = await import("./src/environment/terrain.js");
+            const { createTerrain } = await import("../src/environment/terrain.js");
             console.log("✓ terrain loaded");
             
             console.log("5. Loading uniformGrid...");
-            const { UniformGrid } = await import("./src/spacial/uniformGrid.js");
+            const { UniformGrid } = await import("../src/spatial/uniformGrid.js");
             console.log("✓ uniformGrid loaded");
             
             console.log("6. Loading debugGridRenderer...");
-            const { DebugGridRenderer } = await import("./src/spacial/debugGridRenderer.js");
+            const { DebugGridRenderer } = await import("../src/spatial/debugGridRenderer.js");
             console.log("✓ debugGridRenderer loaded");
             
             console.log("7. Loading hotbar...");
-            const { createHotbar } = await import("./src/ui/hotbar.js");
+            const { createHotbar } = await import("../src/ui/hotbar.js");
             console.log("✓ hotbar loaded");
             
             console.log("8. Initializing Three.js...");

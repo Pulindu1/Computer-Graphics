@@ -1,6 +1,6 @@
 
 import { ISpatialIndex } from "./ISpatialIndex.js";
-import { cellCoord, packKey } from "../spacial/hashKey.js";
+import { cellCoord, packKey } from "../spatial/hashKey.js";
 
 export class SpatialHashIndex extends ISpatialIndex {
   /**

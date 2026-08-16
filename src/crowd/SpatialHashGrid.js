@@ -1,4 +1,4 @@
-import { cellCoord, packKey, unpackKey } from "../spacial/hashKey.js";
+import { cellCoord, packKey, unpackKey } from "../spatial/hashKey.js";
 
 
 export class SpatialHashGrid {

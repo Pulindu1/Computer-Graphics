@@ -1,1 +1,30 @@
+# --- Coursework artefacts (kept locally, never published) ---
+spec.pdf
 VIDEO.mp4
+*.mp4
+*.mov
+
+# --- OS cruft ---
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+desktop.ini
+
+# --- Editor / IDE ---
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- Backups & scratch ---
+*.bak
+*.orig
+*.log
+*~
+
+# --- Node (not used today, but harmless if a build step is ever added) ---
+node_modules/
+dist/
+.cache/
