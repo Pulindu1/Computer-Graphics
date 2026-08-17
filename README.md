@@ -18,8 +18,8 @@ The project is pure client-side ES modules — no install, no bundler, no `npm`.
 served over HTTP (ES module imports won't load from `file://`).
 
 ```sh
-git clone https://github.com/Pulindu1/Computer-Graphics.git
-cd Computer-Graphics
+git clone https://github.com/Pulindu1/procedural-graphics-engine.git
+cd procedural-graphics-engine
 python3 -m http.server 8000
 ```
 
