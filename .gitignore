@@ -1,5 +1,6 @@
-# --- Coursework artefacts (kept locally, never published) ---
+# --- Local-only artefacts (never published) ---
 spec.pdf
+docs/REPORT.pdf
 VIDEO.mp4
 *.mp4
 *.mov

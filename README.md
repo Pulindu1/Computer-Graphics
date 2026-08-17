@@ -1,6 +1,6 @@
 # Large-Scale Crowd Simulation & Parametric Rendering
 
-A real-time WebGL simulation of a stylised Durham riverside light festival, built from scratch in
+A real-time WebGL simulation of a stylised riverside light festival, built from scratch in
 **Three.js** with no build step, no engine, and no imported 3D models. Everything you see — the
 terrain, the river, the houses, the trees, the crowds — is generated procedurally at load time.
 
@@ -8,8 +8,7 @@ The scene sustains **60 FPS with ~3,400 active agents** (2,500 light orbs, 500 a
 pedestrians, 400 fireflies) alongside ~1,200 environmental assets, and has been benchmarked to
 **10,000 orbs at ~40 FPS**.
 
-> Submitted for **COMP4097 Advanced Computer Graphics and Visualisation** (Durham University,
-> 2025–26). **Awarded 85%.**
+![The simulation running: riverside orb swarm, articulated pedestrians and the glowing pyramid, with the live HUD and spatial-index statistics](docs/demo.gif)
 
 ---
 
@@ -106,9 +105,157 @@ the shader-based and alpha-tested edges the rasteriser misses. A bloom pipeline 
 threshold 0.3 → Gaussian convolution → additive blend before tone mapping) unifies the light-festival
 aesthetic while preserving HDR intensities.
 
-The full technical write-up, with the derivations and equations, is in
-**[docs/REPORT.pdf](docs/REPORT.pdf)**. See **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** for a
-map of the source tree.
+See **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** for a map of the source tree.
+
+---
+
+## Technical detail
+
+The derivations, constants and measurements behind the summary above.
+
+### Geometry and spatial architecture
+
+**Procedural terrain.** The topography is an analytic height field — a base surface minus a river
+carve, sampled by every other system in the scene:
+
+$$y(x, z) = h_{\text{base}}(x, z) - h_{\text{river}}(d)$$
+
+The river's centre-line $c_x$ is a dual-frequency meander ($A_m = 55$, $\lambda_m = 140$), which
+gives a channel that reads as organic rather than sinusoidal:
+
+$$c_x(z) = A_m \sin\left(\frac{z + s}{\lambda_m}\right) + 0.35\,A_m \sin\left(\frac{z - s}{0.55\,\lambda_m}\right)$$
+
+Vertical displacement at the banks is blended with cubic Hermite interpolation (smoothstep) rather
+than a linear ramp, which keeps the surface $C^1$ continuous. Continuous first derivatives mean
+continuous surface normals, which is what eliminates the specular seams a linear blend leaves along
+the bank boundary.
+
+**Reactive Bézier canopy.** The "glowing blanket" over the second street is a tensor-product cubic
+Bézier surface evaluated from Bernstein basis polynomials:
+
+$$S(u, v) = \sum_{i=0}^{3} \sum_{j=0}^{3} B_i^3(u)\, B_j^3(v)\, P_{i,j}(t)$$
+
+Animation moves the 16 control points, $P_{i,j}.y = A \sin(\omega t + \phi_{i,j})$, rather than the
+~5,000 evaluated vertices. The deformation therefore costs $O(1)$ state updates per frame and needs
+no skeletal rig.
+
+**Spatial discretisation.** Naive agent interaction is $O(N^2)$. Two acceleration structures were
+implemented behind a common `ISpatialIndex` interface and compared directly: a uniform spatial hash
+with cell size $s = 10\,\text{m}$, mapping $(i, j) = (\lfloor x/s \rfloor, \lfloor z/s \rfloor)$ to
+32-bit packed integer keys with zero-allocation `queryInto` queries, and a point quadtree backed by
+a pre-allocated 4096-node pool.
+
+The hash reduces complexity to $O(N \cdot k)$, but the quadtree was selected for the shipped
+configuration: its adaptive subdivision suits the scene's very non-uniform crowd density, and the
+node pool avoids the memory-fragmentation anti-pattern — no per-frame heap allocation, so no GC
+spikes. At $N = 1000$ (≈50 FPS) it gave better cache coherency and lower frame-time variance during
+rapid camera shifts. Both remain switchable at runtime from the GUI, with live build/query timings.
+
+### Crowd simulation
+
+Three behavioural systems, each trading emergent complexity against real-time scalability
+differently.
+
+**Orb swarm — stochastic flow.** The river corridor carries up to 6,300 light agents at 60 FPS in a
+structure-of-arrays layout. Forward motion along $Z$ is coupled to a lateral parametric swerve with
+target offset
+
+$$T_i(z) = A_s \sin(z_i f_s + \phi_i)$$
+
+Steering resolves through a spring-damper rather than snapping to the target, which is what keeps
+transitions smooth instead of jittery:
+
+$$\dot{v}_{x,i} = (T_i - dx_i) \cdot K_s \cdot dt$$
+
+where $K_s$ is stiffness. The result is force-driven movement rather than a rigid kinematic path.
+
+**Walkway pedestrians — FSM and prioritised dithering.** Riverbank pedestrians run a finite state
+machine (`CRUISE` / `QUEUE` / `AVOID` / `LEADER`), transitioning on local density and proximity to
+ghost targets. Steering forces accumulate in priority order (P1 separation before P3 flow-field);
+once the accumulated force exceeds $0.8 \cdot F_{\max}$, lower-priority terms are truncated. This
+prevents force cancellation — safety-critical avoidance can never be overridden by a flow-field
+term that happens to point the other way.
+
+**Street crowd — context-aware intelligence.** The hilltop streets model attraction against
+avoidance. Agents are stochastically drawn to the glowing pyramid via a horizontal-only pull:
+
+$$\vec{F}_{\text{attr}} = 0.08 \cdot w_a \cdot \hat{d}_{\text{pyramid}}$$
+
+balanced against three distinct avoidance geometries: a high-priority radial repulsion zone of 25
+units around the pyramid; dynamic avoidance of the atmospheric light cubes, which reads as
+pedestrians navigating a crowded festival; and rectangular AABB collision against procedural house
+footprints, keeping agents on the carved streets. Agents wander randomly but stay strictly
+constrained by the procedural environment.
+
+### Procedural kinematics
+
+**Orientation.** Facing is resolved with quaternions and spherical linear interpolation toward the
+velocity vector $\vec{v}$:
+
+$$q_{\text{mesh}} = \text{Slerp}(q_{\text{current}}, q_{\text{target}}, \alpha) = \frac{\sin(t\Omega)}{\sin \Omega} q_{\text{target}}$$
+
+where $\Omega$ is the angle between quaternions. Slerp guarantees constant angular velocity and
+unit magnitude, avoiding the shrinking artefacts of linear interpolation and giving $C^1$
+continuous turning.
+
+**Gait.** The walk cycle is generated, not keyframed. Walk frequency scales linearly with speed:
+
+$$f_{\text{walk}} = f_{\text{base}} + k|\vec{v}|, \qquad f_{\text{base}} = 2\,\text{Hz}$$
+
+and each limb's angular displacement is
+
+$$\theta(t) = A_{\max} \cdot \sin(2\pi f_{\text{walk}} t + \phi)$$
+
+Legs and arms are phased $\pi$ radians apart to hold the centre of mass, and a vertical torso bob
+with speed-coupled amplitude reproduces the arc of suspension — which is what visually separates a
+stroll from a brisk walk.
+
+### Rendering optimisation
+
+**Hardware instancing.** Drawing 1,000+ agents individually costs $O(n)$ draw calls. A
+`THREE.InstancedMesh` pipeline consolidates the swarm into a single call by sharing one vertex
+buffer and material; each agent's state is a $4 \times 4$ transform passed as an instanced
+attribute:
+
+$$V_{\text{world}} = M_i \times V_{\text{local}}$$
+
+This moves the work off the CPU's command processor and onto the GPU's fixed-function instancing
+hardware.
+
+**Data-oriented state.** Agent state is a structure of arrays rather than an array of objects —
+contiguous `Float32Array`s (`pos_z[N]`, `offset_x[N]`, `vel_x[N]`, `phase[N]`) — for cache
+coherency during the per-frame matrix loop. Matrices are written straight into `instanceMatrix`,
+with buffer usage set to `THREE.DynamicDrawUsage` so the driver picks a memory-mapping strategy
+suited to frequent updates, minimising PCIe bus traffic.
+
+**Spatial chunking.** Agents are grouped into chunks of ≤512, each its own `InstancedMesh` with
+`frustumCulled = true`. Matrix construction and GPU upload are skipped entirely for off-screen
+chunks, dropping per-frame bandwidth from $O(N)$ to $O(N_{\text{visible}})$.
+
+### Adaptive LOD and visual signals
+
+Sustaining 6,700+ entities at 60 FPS needs four LOD tiers working together:
+
+- **Discrete environment LOD** — LOD0 (full, shadowed), LOD1 (simplified), LOD2 (box silhouette, no
+  shadows), cutting vertex pressure by >70% on background geometry.
+- **Instanced agent LOD with hysteresis** — orbs swap to 8×8 billboard sparks at distance, with a
+  hysteresis band of $H = 10$ units so agents near the boundary don't flip state every frame
+  (temporal aliasing).
+- **Animation LOD** — pedestrians are the CPU bottleneck, so kinematics are decimated by distance:
+  near agents get full-rate $C^1$ walk cycles, mid agents update every $N$ frames, far agents hold
+  a cached neutral pose. Roughly 60% off animation overhead.
+- **Light and shadow pooling** — only the 12 nearest lamps hold active `SpotLight` objects, and PCF
+  shadows are culled beyond 25 units, bounding fragment-shader cost and VRAM bandwidth.
+
+**Anti-aliasing.** High-frequency geometry (railings, rooftops) is handled in two passes: hardware
+MSAA for geometric sub-sampling, plus a post-process FXAA pass detecting luma discontinuities to
+smooth the shader-based and alpha-tested edges (the rocks) that the rasteriser misses.
+
+**Bloom.** Optical scattering is simulated in three stages — a bright-pass isolating emissive
+signals above $l_{\text{in}} > 0.3$, Gaussian convolution modelling light spread ($r = 0.4$), then
+additive blending *before* tone mapping so HDR intensities up to 6.0 survive. Combined with
+time-reactive HSL shifts in the Bézier canopy, this is what holds the festival aesthetic together
+across the day/night cycle.
 
 ## Project layout
 
@@ -125,7 +272,7 @@ src/
   parametric/         Bézier blanket canopy
   ui/                 lil-gui panel, hotbar, day/night cycle
   textures/           The single bitmap texture in the project (see references.md)
-docs/                 Report and architecture notes
+docs/                 Architecture notes and the demo capture
 dev/                  Standalone diagnostic pages (not part of the simulation)
 ```
 
@@ -140,16 +287,6 @@ Loaded at runtime from CDN via an [import map](index.html) — nothing is vendor
 
 All geometry is procedural. The only bitmap asset is `src/textures/rock.png`; its attribution is in
 [src/textures/references.md](src/textures/references.md).
-
-## A note on academic integrity
-
-This repository is published as a portfolio piece. If you are taking COMP4097 or a similar module,
-please read it for ideas and don't submit any part of it as your own — Durham's plagiarism rules
-apply to published sources, and this one is now very much published.
-
-The assignment specification and the submitted demo video are deliberately excluded from version
-control (see [.gitignore](.gitignore)); the specification is Durham University's material, not mine
-to redistribute.
 
 ## Licence
 

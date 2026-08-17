@@ -2,7 +2,7 @@
 
 A map of the source tree, for anyone reading the code rather than running it. For the technical
 rationale behind these choices — the maths, the complexity analysis, the structures that were
-rejected — see [REPORT.pdf](REPORT.pdf).
+rejected — see the **Technical detail** section of the [README](../README.md).
 
 ## Boot sequence
 

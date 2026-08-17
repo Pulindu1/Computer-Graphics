@@ -272,7 +272,7 @@ const streetLamps = new StreetLampSystem({
   platformHeight: 5.0,
 });
 
-// Durham street
+// Street district
 const streetDistrict = new StreetDistrict({
   scene: scene,
   terrain: terrain,
@@ -288,7 +288,7 @@ const streetDistrict = new StreetDistrict({
 });
 streetDistrict.generate();
 
-// Durham street 2
+// Street district 2
 const streetDistrict2 = new StreetDistrict({
   scene: scene,
   terrain: terrain,
